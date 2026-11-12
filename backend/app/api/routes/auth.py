@@ -2,11 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status, Cookie
 
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_current_user, require_roles
 from app.db.session import get_db
 from app.schemas.auth import LoginRequest, LoginResponse
 from app.schemas.user import UserResponse
 from app.services.auth import login_user, logout_user
 from app.services.refresh_token_service import refresh_user_session
+from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -124,3 +126,8 @@ def logout(
     )
 
     return {"message": "Logout successful"}
+
+@router.get("/me", response_model=UserResponse)
+def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
