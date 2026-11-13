@@ -3,6 +3,7 @@ from app.db.base import Base
 
 from app.models.user import User
 from app.models.refresh_token import RefreshToken
+from app.models.community import Community
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 from logging.config import fileConfig
