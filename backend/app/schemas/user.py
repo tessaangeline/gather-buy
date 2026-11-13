@@ -8,6 +8,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     role: UserRole
+    community_id: int | None = None
+    flat_number: str | None = None
 
 
 class UserResponse(BaseModel):
@@ -16,5 +18,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: UserRole
     is_active: bool
+    community_id: int | None = None
+    flat_number: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
