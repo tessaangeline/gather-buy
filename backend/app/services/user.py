@@ -2,7 +2,13 @@
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
-from app.repositories.user import get_user_by_email, create_user
+from app.repositories.user import (
+    get_user_by_email, 
+    create_user, 
+    get_apartment_admins,
+    get_suppliers,
+    get_residents_by_community
+)
 from app.repositories.community import get_community_by_id
 from app.core.security import hash_password
 
@@ -97,3 +103,21 @@ def register_user(
 
     # 5. Save user
     return create_user(db, user_data)
+
+
+def list_apartment_admins(db: Session):
+    return get_apartment_admins(db)
+
+
+def list_suppliers(db: Session):
+    return get_suppliers(db)
+
+
+def list_residents(db: Session, current_user: User):
+    if current_user.community_id is None:
+        raise ValueError("Apartment Admin is not assigned to a community")
+
+    return get_residents_by_community(
+        db,
+        current_user.community_id
+    )

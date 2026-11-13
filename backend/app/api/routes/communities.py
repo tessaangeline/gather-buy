@@ -5,7 +5,7 @@ from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.schemas.community import CommunityCreate, CommunityResponse
 from app.api.dependencies import  require_roles
-from app.services.community import register_community
+from app.services.community import register_community, list_communities
 
 
 router = APIRouter(prefix="/communities", tags=["Communities"])
@@ -36,3 +36,12 @@ def create_community_api(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc)
         )
+
+@router.get(
+    "/",
+    response_model=list[CommunityResponse])
+def get_communities_api(
+    current_user: User = Depends(require_roles(UserRole.SUPER_ADMIN)),
+    db: Session = Depends(get_db)
+):
+    return list_communities(db)

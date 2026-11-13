@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models.user import User, UserRole
-from app.repositories.community import create_community
+from app.repositories.community import create_community, get_all_communities
 
 
 def register_community(
@@ -21,3 +21,6 @@ def register_community(
     }
 
     return create_community(db, community_data)
+
+def list_communities(db: Session):
+    return get_all_communities(db)

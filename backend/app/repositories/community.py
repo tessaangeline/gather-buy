@@ -23,3 +23,5 @@ def get_community_by_id(
         .first()
     )
 
+def get_all_communities(db: Session) -> list[Community]:
+    return db.query(Community).all()
