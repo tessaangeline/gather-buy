@@ -1,6 +1,6 @@
-
-from sqlalchemy import String, Integer, Boolean, Enum as SQLAlchemyEnum
+from sqlalchemy import String, Integer, Column, Boolean, Enum as SQLAlchemyEnum
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import ForeignKey
 
 from app.db.base import Base
 
@@ -51,3 +51,11 @@ class User(Base):
         default=True,
         nullable=False
     )
+
+    community_id = Column(
+        Integer,
+        ForeignKey("communities.id"),
+        nullable=True
+)
+
+    flat_number = Column(String(50), nullable=True)

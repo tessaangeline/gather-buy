@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from app.api.routes import auth
+from app.api.routes import communities
 
 app = FastAPI(
     title="Gather Buy API",
@@ -8,6 +9,7 @@ app = FastAPI(
 )
 
 app.include_router(auth.router)
+app.include_router(communities.router)
 
 @app.get("/")
 def home():
@@ -15,3 +17,4 @@ def home():
 
         "message": "Welcome to Gather Buy API!"
     }
+
