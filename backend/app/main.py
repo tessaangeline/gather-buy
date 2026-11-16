@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from app.api.routes import auth, communities, users
+from app.api.routes import auth, communities, users, products
 
 
 app = FastAPI(
@@ -11,6 +11,7 @@ app = FastAPI(
 app.include_router(auth.router)
 app.include_router(communities.router)
 app.include_router(users.router)
+app.include_router(products.router)
 
 @app.get("/")
 def home():
@@ -18,4 +19,4 @@ def home():
 
         "message": "Welcome to Gather Buy API!"
     }
-
+            
