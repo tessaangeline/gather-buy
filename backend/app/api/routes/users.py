@@ -4,13 +4,15 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.user import User, UserRole
-from app.schemas.user import UserCreate, UserResponse
+from app.schemas.user import UserCreate, UserResponse, UserUpdate, UserStatusUpdate
 from app.api.dependencies import require_roles
 from app.services.user import (
     register_user,
     list_apartment_admins,
     list_suppliers,
-    list_residents
+    list_residents,
+    edit_user_by_id,
+    change_user_status
 )
 
 
@@ -90,5 +92,80 @@ def get_residents_api(
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc)
+        )
+
+@router.put("/{user_id}", response_model=UserResponse)
+def update_user_api(
+    user_id: int,
+    user_data: UserUpdate,
+    current_user: User = Depends(
+        require_roles(UserRole.SUPER_ADMIN, UserRole.APARTMENT_ADMIN)
+    ),
+    db: Session = Depends(get_db)
+):
+    update_data = user_data.model_dump(
+        exclude_unset=True,
+        exclude_none=True
+    )
+
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one field must be provided"
+        )
+
+    try:
+        return edit_user_by_id(
+            db=db,
+            current_user=current_user,
+            user_id=user_id,
+            update_data=update_data
+        )
+
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc)
+        )
+
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc)
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc)
+        )
+
+@router.patch("/{user_id}/status", response_model=UserResponse)
+def update_user_status_api(
+    user_id: int,
+    status_data: UserStatusUpdate,
+    current_user: User = Depends(
+        require_roles(UserRole.SUPER_ADMIN, UserRole.APARTMENT_ADMIN)
+    ),
+    db: Session = Depends(get_db)
+):
+    try:
+        return change_user_status(
+            db=db,
+            current_user=current_user,
+            user_id=user_id,
+            is_active=status_data.is_active
+        )
+
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc)
+        )
+
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc)
         )
