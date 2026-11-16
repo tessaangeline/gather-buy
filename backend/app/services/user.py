@@ -4,7 +4,10 @@ from sqlalchemy.orm import Session
 from app.models.user import User, UserRole
 from app.repositories.user import (
     get_user_by_email, 
+    get_user_by_id,
     create_user, 
+    update_user,
+    update_user_status,
     get_apartment_admins,
     get_suppliers,
     get_residents_by_community
@@ -120,4 +123,134 @@ def list_residents(db: Session, current_user: User):
     return get_residents_by_community(
         db,
         current_user.community_id
+    )
+
+def edit_user(
+    db: Session,
+    current_user: User,
+    target_user: User,
+    update_data: dict
+) -> User:
+
+    # 1. Check whether the current user can edit the target user
+    if current_user.role == UserRole.SUPER_ADMIN:
+        if target_user.role not in {
+            UserRole.APARTMENT_ADMIN,
+            UserRole.SUPPLIER
+        }:
+            raise PermissionError(
+                "Super Admin can only edit Apartment Admins and Suppliers"
+            )
+
+    elif current_user.role == UserRole.APARTMENT_ADMIN:
+        if target_user.role != UserRole.RESIDENT:
+            raise PermissionError(
+                "Apartment Admin can only edit Residents"
+            )
+
+        if target_user.community_id != current_user.community_id:
+            raise PermissionError(
+                "You can only edit Residents in your own community"
+            )
+
+    else:
+        raise PermissionError(
+            "You are not authorized to edit users"
+        )
+
+    # 2. Check whether the email is already used by another account
+    if "email" in update_data:
+        email = update_data["email"].strip().lower()
+
+        existing_user = get_user_by_email(db, email)
+
+        if existing_user and existing_user.id != target_user.id:
+            raise ValueError("Email already registered")
+
+        update_data["email"] = email
+
+    # 3. Validate and clean the provided fields
+    if "full_name" in update_data:
+        if not update_data["full_name"].strip():
+            raise ValueError("Full name cannot be empty")
+
+        update_data["full_name"] = update_data["full_name"].strip()
+
+    if "flat_number" in update_data:
+        if target_user.role != UserRole.RESIDENT:
+            raise ValueError("Flat number can only be updated for Residents")
+
+        if not update_data["flat_number"].strip():
+            raise ValueError("Flat number cannot be empty")
+
+        update_data["flat_number"] = update_data["flat_number"].strip()
+
+    # 4. Update the database record
+    return update_user(db, target_user, update_data)
+
+def edit_user_by_id(
+    db: Session,
+    current_user: User,
+    user_id: int,
+    update_data: dict
+) -> User:
+
+    target_user = get_user_by_id(db, user_id)
+
+    if not target_user:
+        raise LookupError("User not found")
+
+    return edit_user(
+        db=db,
+        current_user=current_user,
+        target_user=target_user,
+        update_data=update_data
+    )
+
+def change_user_status(
+    db: Session,
+    current_user: User,
+    user_id: int,
+    is_active: bool
+) -> User:
+
+    # 1. Find the target user
+    target_user = get_user_by_id(db, user_id)
+
+    if not target_user:
+        raise LookupError("User not found")
+
+    # 2. Check permissions
+    if current_user.role == UserRole.SUPER_ADMIN:
+
+        if target_user.role not in {
+            UserRole.APARTMENT_ADMIN,
+            UserRole.SUPPLIER
+        }:
+            raise PermissionError(
+                "Super Admin can only manage Apartment Admins and Suppliers"
+            )
+
+    elif current_user.role == UserRole.APARTMENT_ADMIN:
+
+        if target_user.role != UserRole.RESIDENT:
+            raise PermissionError(
+                "Apartment Admin can only manage Residents"
+            )
+
+        if target_user.community_id != current_user.community_id:
+            raise PermissionError(
+                "You can only manage Residents in your own community"
+            )
+
+    else:
+        raise PermissionError(
+            "You are not authorized to manage users"
+        )
+
+    # 3. Update account status
+    return update_user_status(
+        db=db,
+        user=target_user,
+        is_active=is_active
     )

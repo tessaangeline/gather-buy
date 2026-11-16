@@ -54,3 +54,25 @@ def get_residents_by_community(
         )
         .all()
     )
+
+def update_user(db: Session, user: User, update_data: dict) -> User:
+    for field, value in update_data.items():
+        setattr(user, field, value)
+
+    db.commit()
+    db.refresh(user)
+
+    return user
+
+def update_user_status(
+    db: Session,
+    user: User,
+    is_active: bool
+) -> User:
+
+    user.is_active = is_active
+
+    db.commit()
+    db.refresh(user)
+
+    return user
