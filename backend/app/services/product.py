@@ -12,9 +12,8 @@ from app.repositories.product import (
     deactivate_product as deactivate_product_record,
     activate_product as activate_product_record,
     adjust_product_stock as adjust_product_stock_record,
+    filter_products
 )
-
-
 
 def register_product(
     db: Session,
@@ -42,19 +41,52 @@ def register_product(
 
 def list_products(
     db: Session,
-    current_user: User
-) -> list[Product]:
+    current_user: User,
+    search: str | None = None,
+    availability: str | None = None,
+    skip: int = 0,
+    limit: int = 10
 
-    if current_user.role == UserRole.SUPPLIER:
-        return get_all_products(db)
-
-    if current_user.role == UserRole.RESIDENT:
-        return get_available_products(db)
-
-    raise PermissionError(
-        "You are not allowed to view products"
+):
+    valid_filters = (
+        "available",
+        "out_of_stock",
+        "active",
+        "inactive"
     )
 
+    if availability and availability not in valid_filters:
+        raise ValueError("Invalid availability filter")
+
+    if current_user.role == UserRole.SUPPLIER:
+        return filter_products(
+            db=db,
+            availability=availability,
+            search=search,
+            skip=skip,
+            limit=limit
+        )
+
+    elif current_user.role == UserRole.RESIDENT:
+
+        if availability not in (None, "available"):
+            raise PermissionError(
+                "Residents can only view available products"
+            )
+
+        return filter_products(
+            db=db,
+            search=search,
+            available_only=True,
+            skip=skip,
+            limit=limit
+        )
+
+    else:
+        raise PermissionError(
+            "You are not allowed to view products"
+        )
+    
 def edit_product(
     db: Session,
     current_user: User,

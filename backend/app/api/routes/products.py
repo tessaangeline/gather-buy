@@ -1,5 +1,5 @@
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -54,20 +54,30 @@ def create_product_api(
             detail=str(exc)
         )
 
-
 # List products
 @router.get(
     "/",
     response_model=list[ProductResponse]
 )
 def get_products_api(
+    search: str | None = Query(default=None, min_length=1),
+    availability: str | None = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, ge=1, le=100),
     current_user: User = Depends(
         require_roles(UserRole.SUPPLIER, UserRole.RESIDENT)
     ),
     db: Session = Depends(get_db)
 ):
     try:
-        return list_products(db, current_user)
+        return list_products(
+            db=db,
+            current_user=current_user,
+            search=search,
+            availability=availability,
+            skip=skip,
+            limit=limit
+        )
 
     except PermissionError as exc:
         raise HTTPException(
@@ -75,6 +85,11 @@ def get_products_api(
             detail=str(exc)
         )
 
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc)
+        )
 
 # Update a product
 @router.put(

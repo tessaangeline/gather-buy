@@ -99,3 +99,65 @@ def adjust_product_stock(
     db.refresh(product)
 
     return product
+
+def search_products_by_name(
+    db: Session,
+    search_term: str,
+    available_only: bool = False
+) -> list[Product]:
+
+    query = db.query(Product).filter(
+        Product.name.ilike(f"%{search_term}%")
+    )
+
+    if available_only:
+        query = query.filter(
+            Product.is_active.is_(True),
+            Product.stock_on_hand > Product.stock_reserved
+        )
+
+    return query.all()
+
+def filter_products(
+    db: Session,
+    availability: str | None = None,
+    search: str | None = None,
+    available_only: bool = False,
+    skip: int = 0,
+    limit: int = 10
+) -> list[Product]:
+
+    query = db.query(Product)
+
+    if search:
+        query = query.filter(
+            Product.name.ilike(f"%{search}%")
+        )
+
+    if available_only:
+        query = query.filter(
+            Product.is_active.is_(True),
+            Product.stock_on_hand > Product.stock_reserved
+        )
+
+    elif availability == "available":
+        query = query.filter(
+            Product.is_active.is_(True),
+            Product.stock_on_hand > Product.stock_reserved
+        )
+
+    elif availability == "out_of_stock":
+        query = query.filter(
+            Product.is_active.is_(True),
+            Product.stock_on_hand <= Product.stock_reserved
+        )
+
+    elif availability == "active":
+        query = query.filter(Product.is_active.is_(True))
+
+    elif availability == "inactive":
+        query = query.filter(Product.is_active.is_(False))
+
+    query = query.order_by(Product.id)
+
+    return query.offset(skip).limit(limit).all()
