@@ -1,5 +1,15 @@
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pathlib import Path
+
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Query,
+    UploadFile,
+    File
+)
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -8,16 +18,20 @@ from app.schemas.product import (
     ProductCreate,
     ProductUpdate,
     ProductResponse,
-    StockAdjustment 
+    StockAdjustment
 )
 from app.api.dependencies import require_roles
+
+from app.repositories.product import get_product_by_id
+from app.utils.image_storage import save_product_image, UPLOAD_DIR
+
 from app.services.product import (
     register_product,
     list_products,
     edit_product,
     remove_product,
     restore_product,
-    adjust_stock        
+    adjust_stock
 )
 
 
@@ -43,16 +57,11 @@ def create_product_api(
         )
 
     except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=403, detail=str(exc))
 
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=400, detail=str(exc))
+
 
 # List products
 @router.get(
@@ -80,16 +89,11 @@ def get_products_api(
         )
 
     except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=403, detail=str(exc))
 
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=400, detail=str(exc))
+
 
 # Update a product
 @router.put(
@@ -111,22 +115,13 @@ def update_product_api(
         )
 
     except LookupError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=404, detail=str(exc))
 
     except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=403, detail=str(exc))
 
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # Deactivate a product
@@ -147,23 +142,16 @@ def deactivate_product_api(
         )
 
     except LookupError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=404, detail=str(exc))
 
     except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=403, detail=str(exc))
 
     except ValueError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=400, detail=str(exc))
 
+
+# Activate a product
 @router.patch(
     "/{product_id}/activate",
     response_model=ProductResponse
@@ -189,6 +177,7 @@ def activate_product_api(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
+
 # Adjust product stock
 @router.patch(
     "/{product_id}/stock",
@@ -212,19 +201,73 @@ def adjust_product_stock_api(
         )
 
     except LookupError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=404, detail=str(exc))
 
     except PermissionError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=str(exc)
-        )
+        raise HTTPException(status_code=403, detail=str(exc))
 
     except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# Upload or replace a product image
+@router.post(
+    "/{product_id}/image",
+    response_model=ProductResponse
+)
+async def upload_product_image_api(
+    product_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(
+        require_roles(UserRole.SUPPLIER)
+    ),
+    db: Session = Depends(get_db)
+):
+    # 1. Check whether the product exists
+    product = get_product_by_id(db, product_id)
+
+    if product is None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc)
+            status_code=404,
+            detail="Product not found"
         )
+
+    # 2. Remember the existing image
+    old_image_url = product.image_url
+
+    # 3. Validate and save the new image
+    image_url = await save_product_image(file, product_id)
+
+    # 4. Update the image URL in the database
+    try:
+        updated_product = edit_product(
+            db=db,
+            current_user=current_user,
+            product_id=product_id,
+            product_data=ProductUpdate(image_url=image_url)
+        )
+
+    except Exception:
+        db.rollback()
+
+        # Remove the new file if the database update fails
+        if image_url != old_image_url:
+            new_file = UPLOAD_DIR / Path(image_url).name
+
+            if new_file.exists():
+                new_file.unlink()
+
+        raise
+
+    # 5. Delete the previous image after successful update
+    if old_image_url and old_image_url != image_url:
+        old_file = UPLOAD_DIR / Path(old_image_url).name
+
+        if old_file.exists():
+            try:
+                old_file.unlink()
+            except OSError:
+                # Keep the updated product even if old-file cleanup fails
+                pass
+
+    return updated_product
