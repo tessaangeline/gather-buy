@@ -1,6 +1,4 @@
 
-from http.client import HTTPException
-
 from sqlalchemy.orm import Session
 from app.models.user import User, UserRole
 from app.models.product import Product
@@ -12,7 +10,8 @@ from app.repositories.product import (
     get_product_by_id,
     update_product as update_product_record,
     deactivate_product as deactivate_product_record,
-    activate_product as activate_product_record
+    activate_product as activate_product_record,
+    adjust_product_stock as adjust_product_stock_record,
 )
 
 
@@ -142,3 +141,45 @@ def restore_product(
 
     return activate_product_record(db, product)
 
+def adjust_stock(
+    db: Session,
+    current_user: User,
+    product_id: int,
+    quantity: int,
+    operation: str
+):
+    # Only suppliers can adjust stock
+    if current_user.role != UserRole.SUPPLIER:
+        raise PermissionError("Only suppliers can adjust stock")
+
+    # Check whether the product exists
+    product = get_product_by_id(db, product_id)
+
+    if not product:
+        raise LookupError("Product not found")
+
+    # Calculate the stock change
+    if operation == "ADD":
+        quantity_delta = quantity
+    elif operation == "REMOVE":
+        quantity_delta = -quantity
+    else:
+        raise ValueError("Invalid stock operation")
+
+
+    updated_product = adjust_product_stock_record(
+        db,
+        product,
+        quantity_delta
+)
+
+    if updated_product is None:
+    # Check whether the product still exists
+        product = get_product_by_id(db, product_id)
+
+        if product is None:
+            raise LookupError("Product not found")
+
+        raise ValueError("Cannot reduce stock below reserved quantity")
+
+    return updated_product

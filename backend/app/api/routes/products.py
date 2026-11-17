@@ -7,7 +7,8 @@ from app.models.user import User, UserRole
 from app.schemas.product import (
     ProductCreate,
     ProductUpdate,
-    ProductResponse
+    ProductResponse,
+    StockAdjustment 
 )
 from app.api.dependencies import require_roles
 from app.services.product import (
@@ -16,6 +17,7 @@ from app.services.product import (
     edit_product,
     remove_product,
     restore_product,
+    adjust_stock        
 )
 
 
@@ -171,3 +173,43 @@ def activate_product_api(
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+# Adjust product stock
+@router.patch(
+    "/{product_id}/stock",
+    response_model=ProductResponse
+)
+def adjust_product_stock_api(
+    product_id: int,
+    stock_data: StockAdjustment,
+    current_user: User = Depends(
+        require_roles(UserRole.SUPPLIER)
+    ),
+    db: Session = Depends(get_db)
+):
+    try:
+        return adjust_stock(
+            db=db,
+            current_user=current_user,
+            product_id=product_id,
+            quantity=stock_data.quantity,
+            operation=stock_data.operation
+        )
+
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc)
+        )
+
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc)
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc)
+        )

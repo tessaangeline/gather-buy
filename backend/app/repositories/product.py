@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import update
 
 from app.models.product import Product
 
@@ -67,6 +68,32 @@ def deactivate_product(db: Session, product: Product) -> Product:
 
 def activate_product(db: Session, product: Product) -> Product:
     product.is_active = True
+
+    db.commit()
+    db.refresh(product)
+
+    return product
+
+def adjust_product_stock(
+    db: Session,
+    product: Product,
+    quantity_delta: int
+) -> Product | None:
+
+    result = db.execute(
+        update(Product)
+        .where(
+            Product.id == product.id,
+            Product.stock_on_hand + quantity_delta >= Product.stock_reserved
+        )
+        .values(
+            stock_on_hand=Product.stock_on_hand + quantity_delta
+        )
+    )
+
+    if result.rowcount == 0:
+        db.rollback()
+        return None
 
     db.commit()
     db.refresh(product)
