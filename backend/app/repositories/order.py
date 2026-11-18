@@ -98,3 +98,11 @@ def get_community_bulk_orders(
         .all()
     )
 
+def delete_order_items(
+    db: Session,
+    order_id: int
+) -> None:
+
+    db.query(OrderItem).filter(
+        OrderItem.order_id == order_id
+    ).delete(synchronize_session=False)

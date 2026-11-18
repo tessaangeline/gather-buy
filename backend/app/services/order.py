@@ -4,15 +4,17 @@ from sqlalchemy import update
 from datetime import date 
 from decimal import Decimal
 
-from app.repositories.order import get_community_bulk_orders, create_order, create_order_items
+from app.repositories.user import deduct_wallet_balance
+from app.repositories.order import get_community_bulk_orders, create_order, create_order_items, delete_order_items
 from app.schemas.bulk_order import BulkOrderResponse, BulkOrderProductResponse
 from app.models.user import User, UserRole
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.utils.order_utils import is_order_window_open
-from app.repositories.product import get_products_by_ids, reserve_product_stock
+from app.repositories.product import get_products_by_ids, reserve_product_stock, release_product_stock
 from app.schemas.order_item import OrderItemCreate
 from app.models.product import Product
+from app.models.order import Order, OrderStatus
 
 from app.repositories.order import (
     get_resident_orders,
@@ -198,7 +200,17 @@ def place_order(
         # 4. Calculate total using database prices
         total_amount = calculate_order_total(items, products)
 
-        # 5. Combine duplicate product quantities
+        # 5. Deduct wallet balance
+        wallet_deducted = deduct_wallet_balance(
+            db,
+            current_user.id,
+            total_amount
+        )
+
+        if not wallet_deducted:
+            raise ValueError("Insufficient wallet balance")
+        
+        # Combine duplicate product quantities
         requested_quantities = {}
 
         for item in items:
@@ -237,6 +249,113 @@ def place_order(
         create_order_items(db, order_items)
 
         # 9. Commit everything together
+        db.commit()
+
+        return get_order_by_id(db, order.id)
+
+    except Exception:
+        db.rollback()
+        raise
+
+def edit_order(
+    db: Session,
+    current_user: User,
+    order_id: int,
+    items: list[OrderItemCreate]
+) -> Order:
+    try:
+        if not is_order_window_open():
+            raise ValueError("Order editing is closed for today")
+
+        order = get_order_by_id(db, order_id)
+
+        if not order:
+            raise ValueError("Order not found")
+
+        if order.resident_id != current_user.id:
+            raise ValueError("You cannot edit this order")
+
+        if order.status != OrderStatus.PENDING:
+            raise ValueError("Only pending orders can be edited")
+
+        # Validate updated products
+        products = validate_order_products(db, items)
+
+        new_total = calculate_order_total(items, products)
+        old_total = order.total_amount
+        wallet_difference = new_total - old_total
+
+        # Adjust wallet
+        if wallet_difference > 0:
+            deducted = deduct_wallet_balance(
+                db,
+                current_user.id,
+                wallet_difference
+            )
+
+            if not deducted:
+                raise ValueError("Insufficient wallet balance")
+
+        elif wallet_difference < 0:
+            refund_amount = abs(wallet_difference)
+
+            db.execute(
+                update(User)
+                .where(User.id == current_user.id)
+                .values(
+                    wallet_balance=User.wallet_balance + refund_amount
+                )
+                .execution_options(synchronize_session=False)
+            )
+
+        # Calculate quantity differences for stock
+        old_quantities = {}
+        for item in order.items:
+            old_quantities[item.product_id] = (
+                old_quantities.get(item.product_id, 0) + item.quantity
+            )
+
+        new_quantities = {}
+        for item in items:
+            new_quantities[item.product_id] = (
+                new_quantities.get(item.product_id, 0) + item.quantity
+            )
+
+        all_product_ids = set(old_quantities) | set(new_quantities)
+
+        for product_id in all_product_ids:
+            difference = (
+                new_quantities.get(product_id, 0)
+                - old_quantities.get(product_id, 0)
+            )
+
+            if difference > 0:
+                if not reserve_product_stock(db, product_id, difference):
+                    raise ValueError(
+                        f"Insufficient stock for product {product_id}"
+                    )
+
+            elif difference < 0:
+                if not release_product_stock(
+                    db, product_id, abs(difference)
+                ):
+                    raise ValueError(
+                        f"Could not release stock for product {product_id}"
+                    )
+
+        # Replace existing order items
+        delete_order_items(db, order.id)
+
+        new_order_items = prepare_order_items(items, products)
+
+        for item in new_order_items:
+            item.order_id = order.id
+
+        create_order_items(db, new_order_items)
+
+        # Update order total
+        order.total_amount = new_total
+
         db.commit()
 
         return get_order_by_id(db, order.id)

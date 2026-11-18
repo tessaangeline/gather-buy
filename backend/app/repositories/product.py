@@ -189,3 +189,18 @@ def reserve_product_stock(
     )
 
     return result.rowcount > 0
+
+def release_product_stock(db: Session, product_id: int, quantity: int) -> bool:
+    result = db.execute(
+        update(Product)
+        .where(
+            Product.id == product_id,
+            Product.stock_reserved >= quantity
+        )
+        .values(
+            stock_reserved=Product.stock_reserved - quantity
+        )
+        .execution_options(synchronize_session=False)
+    )
+
+    return result.rowcount == 1

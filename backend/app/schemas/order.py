@@ -9,6 +9,8 @@ from app.models.order import OrderStatus
 class OrderCreate(BaseModel):
     items: list[OrderItemCreate] = Field(min_length=1)
 
+class OrderUpdate(BaseModel):
+    items: list[OrderItemCreate] = Field(min_length=1)
 
 class OrderResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

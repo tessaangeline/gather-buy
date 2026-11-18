@@ -5,14 +5,15 @@ from datetime import date
 
 from app.db.session import get_db
 from app.models.user import User, UserRole
-from app.schemas.order import OrderResponse, OrderCreate
+from app.schemas.order import OrderResponse, OrderCreate, OrderUpdate
 from app.api.dependencies import get_current_user, require_roles
 from app.schemas.bulk_order import BulkOrderResponse
 from app.services.order import (
     list_my_orders,
     get_order_details,
     place_order,
-    get_supplier_bulk_orders
+    get_supplier_bulk_orders,
+    edit_order
 )
 
 from app.services.order import (
@@ -130,4 +131,29 @@ def get_order_details_api(
         raise HTTPException(
             status_code=403,
             detail=str(exc)
+        )
+
+@router.put("/{order_id}", response_model=OrderResponse)
+def update_order(
+    order_id: int,
+    order_data: OrderUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        updated_order = edit_order(
+            db,
+            current_user,
+            order_id,
+            order_data.items
+        )
+        return updated_order
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update order"
         )

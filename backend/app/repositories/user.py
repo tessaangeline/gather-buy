@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import update
 
 from app.models.user import User, UserRole
 
@@ -76,3 +77,23 @@ def update_user_status(
     db.refresh(user)
 
     return user
+
+def deduct_wallet_balance(
+    db: Session,
+    user_id: int,
+    amount
+) -> bool:
+
+    result = db.execute(
+        update(User)
+        .where(
+            User.id == user_id,
+            User.wallet_balance >= amount
+        )
+        .values(
+            wallet_balance=User.wallet_balance - amount
+        )
+        .execution_options(synchronize_session=False)
+    )
+
+    return result.rowcount == 1
