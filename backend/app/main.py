@@ -1,10 +1,17 @@
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import auth, communities, users, products, orders
+from app.scheduler import start_scheduler, scheduler
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
+    scheduler.shutdown()
 
 app = FastAPI(
     title="Gather Buy API",

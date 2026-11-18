@@ -204,3 +204,25 @@ def release_product_stock(db: Session, product_id: int, quantity: int) -> bool:
     )
 
     return result.rowcount == 1
+
+
+def consume_reserved_stock(
+    db: Session,
+    product_id: int,
+    quantity: int
+) -> bool:
+    result = db.execute(
+        update(Product)
+        .where(
+            Product.id == product_id,
+            Product.stock_reserved >= quantity,
+            Product.stock_on_hand >= quantity
+        )
+        .values(
+            stock_on_hand=Product.stock_on_hand - quantity,
+            stock_reserved=Product.stock_reserved - quantity
+        )
+        .execution_options(synchronize_session=False)
+    )
+
+    return result.rowcount == 1

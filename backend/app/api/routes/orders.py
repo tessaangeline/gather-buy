@@ -5,7 +5,7 @@ from datetime import date
 
 from app.db.session import get_db
 from app.models.user import User, UserRole
-from app.schemas.order import OrderResponse, OrderCreate, OrderUpdate
+from app.schemas.order import OrderResponse, OrderCreate, OrderUpdate, OrderStatusUpdate
 from app.api.dependencies import get_current_user, require_roles
 from app.schemas.bulk_order import BulkOrderResponse
 from app.services.order import (
@@ -13,7 +13,9 @@ from app.services.order import (
     get_order_details,
     place_order,
     get_supplier_bulk_orders,
-    edit_order
+    edit_order,
+    update_order_status,
+    settle_community_orders
 )
 
 from app.services.order import (
@@ -156,4 +158,54 @@ def update_order(
         raise HTTPException(
             status_code=500,
             detail="Failed to update order"
+        )
+
+@router.patch("/{order_id}/status", response_model=OrderResponse)
+def change_order_status(
+    order_id: int,
+    status_data: OrderStatusUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        updated_order = update_order_status(
+            db,
+            current_user,
+            order_id,
+            status_data.status
+        )
+        return updated_order
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update order status"
+        )
+
+@router.post("/settle")
+def settle_orders(
+    community_id: int,
+    order_date: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.SUPPLIER:
+        raise HTTPException(
+            status_code=403,
+            detail="Only suppliers can settle community orders"
+        )
+
+    try:
+        return settle_community_orders(
+            db,
+            community_id,
+            order_date
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to settle orders"
         )

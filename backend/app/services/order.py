@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import update
 
-from datetime import date 
-from decimal import Decimal
+from datetime import date, timedelta
+from decimal import Decimal, ROUND_HALF_UP
 
 from app.repositories.user import deduct_wallet_balance
 from app.repositories.order import get_community_bulk_orders, create_order, create_order_items, delete_order_items
@@ -11,7 +11,7 @@ from app.models.user import User, UserRole
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.utils.order_utils import is_order_window_open
-from app.repositories.product import get_products_by_ids, reserve_product_stock, release_product_stock
+from app.repositories.product import get_products_by_ids, reserve_product_stock, release_product_stock, consume_reserved_stock
 from app.schemas.order_item import OrderItemCreate
 from app.models.product import Product
 from app.models.order import Order, OrderStatus
@@ -179,6 +179,29 @@ def prepare_order_items(
 
     return order_items
 
+def calculate_discount_rate(total_quantity: int) -> Decimal:
+    discount_rate = Decimal("0.001") * total_quantity
+    return min(discount_rate, Decimal("0.15"))
+
+
+def calculate_discounted_price(
+    retail_price: Decimal,
+    discount_rate: Decimal
+) -> Decimal:
+    return (retail_price * (Decimal("1") - discount_rate)).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP
+    )
+
+
+def calculate_cashback(
+    retail_total: Decimal,
+    final_total: Decimal
+) -> Decimal:
+    return (retail_total - final_total).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP
+    )
 
 def place_order(
     db: Session,
@@ -359,6 +382,155 @@ def edit_order(
         db.commit()
 
         return get_order_by_id(db, order.id)
+
+    except Exception:
+        db.rollback()
+        raise
+
+def update_order_status(
+    db: Session,
+    current_user: User,
+    order_id: int,
+    new_status: OrderStatus
+) -> Order:
+    try:
+        if current_user.role != UserRole.SUPPLIER:
+            raise ValueError("Only suppliers can update order status")
+
+        order = get_order_by_id(db, order_id)
+
+        if not order:
+            raise ValueError("Order not found")
+
+        # Validate status transition
+        if order.status == OrderStatus.PENDING:
+            if new_status != OrderStatus.CONFIRMED:
+                raise ValueError("Pending orders can only be confirmed")
+
+        elif order.status == OrderStatus.CONFIRMED:
+            if new_status != OrderStatus.DISPATCHED:
+                raise ValueError("Confirmed orders can only be dispatched")
+
+        else:
+            raise ValueError("Order has already been dispatched")
+
+        # Consume stock only during dispatch
+        if new_status == OrderStatus.DISPATCHED:
+            for item in order.items:
+                success = consume_reserved_stock(
+                    db,
+                    item.product_id,
+                    item.quantity
+                )
+
+                if not success:
+                    raise ValueError(
+                        f"Failed to dispatch product {item.product_id}"
+                    )
+
+        order.status = new_status
+
+        db.commit()
+
+        return get_order_by_id(db, order.id)
+
+    except Exception:
+        db.rollback()
+        raise
+
+def settle_community_orders(
+    db: Session,
+    community_id: int,
+    order_date: date
+):
+    try:
+        # Get community-wide product quantities
+        bulk_orders = get_community_bulk_orders(
+            db, community_id, order_date
+        )
+
+        discount_rates = {
+            product_id: calculate_discount_rate(total_quantity)
+            for (
+                product_id,
+                product_name,
+                unit,
+                retail_price,
+                total_quantity,
+                resident_count
+            ) in bulk_orders
+        }
+
+        # Get orders belonging to this community and date
+        orders = db.query(Order).filter(
+            Order.community_id == community_id,
+            Order.order_date >= order_date,
+            Order.order_date < order_date + timedelta(days=1)
+        ).all()
+
+        settled_count = 0
+
+        for order in orders:
+            # Prevent duplicate cashback settlement
+            if order.final_amount is not None:
+                continue
+
+            order_items = (
+                db.query(OrderItem)
+                .filter(OrderItem.order_id == order.id)
+                .all()
+            )
+
+            retail_total = Decimal("0.00")
+            final_total = Decimal("0.00")
+
+            for item in order_items:
+                discount_rate = discount_rates.get(
+                    item.product_id,
+                    Decimal("0.00")
+                )
+
+                final_unit_price = calculate_discounted_price(
+                    item.retail_price,
+                    discount_rate
+                )
+
+                item.final_unit_price = final_unit_price
+
+                retail_item_total = item.retail_price * item.quantity
+                final_item_total = final_unit_price * item.quantity
+
+                retail_total += retail_item_total
+                final_total += final_item_total
+
+            cashback = calculate_cashback(
+                retail_total,
+                final_total
+            )
+
+            order.final_amount = final_total
+            order.cashback_amount = cashback
+
+            # Credit cashback to resident wallet
+            if cashback > 0:
+                db.execute(
+                    update(User)
+                    .where(User.id == order.resident_id)
+                    .values(
+                        wallet_balance=User.wallet_balance + cashback
+                    )
+                    .execution_options(synchronize_session=False)
+                )
+
+            settled_count += 1
+
+        db.commit()
+
+        return {
+            "community_id": community_id,
+            "order_date": order_date,
+            "settled_orders": settled_count
+        }
 
     except Exception:
         db.rollback()
