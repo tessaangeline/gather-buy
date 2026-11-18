@@ -5,10 +5,15 @@ from datetime import date
 
 from app.db.session import get_db
 from app.models.user import User, UserRole
-from app.schemas.order import OrderResponse
+from app.schemas.order import OrderResponse, OrderCreate
 from app.api.dependencies import get_current_user, require_roles
 from app.schemas.bulk_order import BulkOrderResponse
-from app.services.order import get_supplier_bulk_orders
+from app.services.order import (
+    list_my_orders,
+    get_order_details,
+    place_order,
+    get_supplier_bulk_orders
+)
 
 from app.services.order import (
     list_my_orders,
@@ -37,6 +42,43 @@ def get_bulk_orders(
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
+@router.post(
+    "/",
+    response_model=OrderResponse,
+    status_code=201
+)
+def place_order_api(
+    order_data: OrderCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(
+        require_roles(UserRole.RESIDENT)
+    )
+):
+    try:
+        return place_order(
+            db=db,
+            current_user=current_user,
+            items=order_data.items
+        )
+
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail=str(exc)
+        )
+
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc)
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
+        )
 
 @router.get(
     "/",

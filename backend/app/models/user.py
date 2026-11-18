@@ -1,4 +1,7 @@
-from sqlalchemy import String, Integer, Column, Boolean, Enum as SQLAlchemyEnum
+from decimal import Decimal
+
+from sqlalchemy import String, Integer, Column, Boolean, Enum as SQLAlchemyEnum, Numeric
+
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import ForeignKey
 
@@ -59,3 +62,9 @@ class User(Base):
 )
 
     flat_number = Column(String(50), nullable=True)
+
+    wallet_balance: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2),     #10 digits in total, 2 digits after the decimal point
+        default=Decimal("1000.00"),
+        nullable=True
+    )

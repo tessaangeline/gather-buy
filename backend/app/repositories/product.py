@@ -24,6 +24,16 @@ def get_product_by_id(
         .first()
     )
 
+def get_products_by_ids(
+    db: Session,
+    product_ids: list[int]
+) -> list[Product]:
+    return (
+        db.query(Product)
+        .filter(Product.id.in_(product_ids))
+        .all()
+    )
+
 def get_all_products(db: Session) -> list[Product]:
     return db.query(Product).all()
 
@@ -161,3 +171,21 @@ def filter_products(
     query = query.order_by(Product.id)
 
     return query.offset(skip).limit(limit).all()
+
+def reserve_product_stock(
+    db: Session,
+    product_id: int,
+    quantity: int
+) -> bool:
+    result = db.execute(
+        update(Product)
+        .where(
+            Product.id == product_id,
+            Product.stock_on_hand - Product.stock_reserved >= quantity
+        )
+        .values(
+            stock_reserved=Product.stock_reserved + quantity
+        )
+    )
+
+    return result.rowcount > 0

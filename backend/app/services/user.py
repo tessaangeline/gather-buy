@@ -1,6 +1,8 @@
 
 from sqlalchemy.orm import Session
 
+from decimal import Decimal
+
 from app.models.user import User, UserRole
 from app.repositories.user import (
     get_user_by_email, 
@@ -93,7 +95,13 @@ def register_user(
         assigned_community_id = current_user.community_id
         flat_number = flat_number.strip()
 
-    # 4. Prepare user data
+   # 4. Prepare user data
+    wallet_balance = (
+        Decimal("1000.00")
+        if role == UserRole.RESIDENT
+        else None
+    )
+
     user_data = {
         "full_name": full_name.strip(),
         "email": email,
@@ -101,6 +109,7 @@ def register_user(
         "role": role,
         "community_id": assigned_community_id,
         "flat_number": flat_number if role == UserRole.RESIDENT else None,
+        "wallet_balance": wallet_balance,
         "is_active": True
     }
 
