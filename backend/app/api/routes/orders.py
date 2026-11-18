@@ -1,10 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from datetime import date
+
 from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.schemas.order import OrderResponse
-from app.api.dependencies import require_roles
+from app.api.dependencies import get_current_user, require_roles
+from app.schemas.bulk_order import BulkOrderResponse
+from app.services.order import get_supplier_bulk_orders
 
 from app.services.order import (
     list_my_orders,
@@ -15,6 +19,24 @@ router = APIRouter(
     prefix="/orders",
     tags=["Orders"]
 )
+
+
+@router.get("/bulk", response_model=BulkOrderResponse)
+def get_bulk_orders(
+    community_id: int,
+    order_date: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        return get_supplier_bulk_orders(
+            db,
+            current_user,
+            community_id,
+            order_date
+        )
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
 
 @router.get(
     "/",
@@ -67,4 +89,3 @@ def get_order_details_api(
             status_code=403,
             detail=str(exc)
         )
-

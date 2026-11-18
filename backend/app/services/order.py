@@ -1,5 +1,9 @@
 from sqlalchemy.orm import Session
 
+from datetime import date 
+
+from app.repositories.order import get_community_bulk_orders
+from app.schemas.bulk_order import BulkOrderResponse, BulkOrderProductResponse
 from app.models.user import User, UserRole
 from app.models.order import Order
 
@@ -46,3 +50,36 @@ def get_order_details(
 
     return order
 
+def get_supplier_bulk_orders(
+    db: Session,
+    current_user: User,
+    community_id: int,
+    order_date: date
+) -> BulkOrderResponse:
+
+    if current_user.role != UserRole.SUPPLIER:
+        raise PermissionError("Only suppliers can view bulk orders")
+
+    bulk_orders = get_community_bulk_orders(
+        db,
+        community_id,
+        order_date
+    )
+
+    products = [
+        BulkOrderProductResponse(
+            product_id=product_id,
+            product_name=product_name,
+            unit=unit,
+            retail_price=retail_price,
+            total_quantity=total_quantity,
+            resident_count=resident_count
+        )
+        for product_id, product_name, unit, retail_price, total_quantity, resident_count in bulk_orders
+    ]
+
+    return BulkOrderResponse(
+        community_id=community_id,
+        order_date=order_date,
+        products=products
+    )
