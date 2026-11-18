@@ -5,6 +5,9 @@ from app.models.user import User
 from app.models.refresh_token import RefreshToken
 from app.models.community import Community
 from app.models.product import Product
+from app.models.order import Order
+from app.models.order_item import OrderItem
+
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 from logging.config import fileConfig

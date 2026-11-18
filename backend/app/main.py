@@ -3,7 +3,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, communities, users, products
+from app.api.routes import auth, communities, users, products, orders
 
 
 app = FastAPI(
@@ -29,6 +29,7 @@ app.include_router(auth.router)
 app.include_router(communities.router)
 app.include_router(users.router)
 app.include_router(products.router)
+app.include_router(orders.router)
 
 
 @app.get("/")
