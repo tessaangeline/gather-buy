@@ -8,3 +8,4 @@ INDIA_TIMEZONE = ZoneInfo("Asia/Kolkata")
 def is_order_window_open() -> bool:
     current_time = datetime.now(INDIA_TIMEZONE).time()
     return current_time < ORDER_CUTOFF
+
