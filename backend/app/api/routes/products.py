@@ -8,8 +8,11 @@ from fastapi import (
     status,
     Query,
     UploadFile,
-    File
+    File,
+    Form
 )
+
+from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -18,6 +21,7 @@ from app.schemas.product import (
     ProductCreate,
     ProductUpdate,
     ProductResponse,
+    ProductStatusUpdate,
     StockAdjustment
 )
 from app.api.dependencies import require_roles
@@ -29,9 +33,8 @@ from app.services.product import (
     register_product,
     list_products,
     edit_product,
-    remove_product,
-    restore_product,
-    adjust_stock
+    update_product_status,
+    adjust_stock,
 )
 
 
@@ -39,22 +42,47 @@ router = APIRouter(prefix="/products", tags=["Products"])
 
 
 # Create a product
+
 @router.post(
     "/",
     response_model=ProductResponse,
     status_code=status.HTTP_201_CREATED
 )
-def create_product_api(
-    product_data: ProductCreate,
+async def create_product_api(
+    name: str = Form(..., min_length=1, max_length=150),
+    description: str | None = Form(default=None),
+    unit: str = Form(..., min_length=1, max_length=50),
+    retail_price: Decimal = Form(..., ge=0),
+    stock_on_hand: int = Form(default=0, ge=0),
+    file: UploadFile | None = File(default=None),
     current_user: User = Depends(require_roles(UserRole.SUPPLIER)),
     db: Session = Depends(get_db)
 ):
     try:
-        return register_product(
+        product_data = ProductCreate(
+            name=name,
+            description=description,
+            unit=unit,
+            retail_price=retail_price,
+            stock_on_hand=stock_on_hand
+        )
+
+        product = register_product(
             db=db,
             current_user=current_user,
             product_data=product_data
         )
+
+        if file:
+            image_url = await save_product_image(file, product.id)
+            product = edit_product(
+                db=db,
+                current_user=current_user,
+                product_id=product.id,
+                product_data=ProductUpdate(image_url=image_url)
+            )
+
+        return product
 
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail=str(exc))
@@ -63,13 +91,14 @@ def create_product_api(
         raise HTTPException(status_code=400, detail=str(exc))
 
 
-# List products
+# Get products
+
 @router.get(
     "/",
     response_model=list[ProductResponse]
 )
 def get_products_api(
-    search: str | None = Query(default=None, min_length=1),
+    search: str | None = Query(default=None),
     availability: str | None = Query(default=None),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=10, ge=1, le=100),
@@ -93,52 +122,102 @@ def get_products_api(
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
-
 # Update a product
+
 @router.put(
     "/{product_id}",
     response_model=ProductResponse
 )
-def update_product_api(
+async def update_product_api(
     product_id: int,
-    product_data: ProductUpdate,
+    name: str | None = Form(default=None),
+    description: str | None = Form(default=None),
+    unit: str | None = Form(default=None),
+    retail_price: Decimal | None = Form(default=None),
+    file: UploadFile | None = File(default=None),
     current_user: User = Depends(require_roles(UserRole.SUPPLIER)),
     db: Session = Depends(get_db)
 ):
+    product = get_product_by_id(db, product_id)
+
+    if product is None:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    old_image_url = product.image_url
+    new_image_url = None
+
     try:
-        return edit_product(
+        update_data = {}
+
+        if name is not None:
+            update_data["name"] = name
+
+        if description is not None:
+            update_data["description"] = description
+
+        if unit is not None:
+            update_data["unit"] = unit
+
+        if retail_price is not None:
+            update_data["retail_price"] = retail_price
+
+        if file is not None:
+            new_image_url = await save_product_image(file, product_id)
+            update_data["image_url"] = new_image_url
+
+        if not update_data:
+            raise ValueError("Provide at least one field to update")
+
+        product_data = ProductUpdate(**update_data)
+
+        updated_product = edit_product(
             db=db,
             current_user=current_user,
             product_id=product_id,
             product_data=product_data
         )
 
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+        # Delete old image only after successful database update
+        if new_image_url and old_image_url:
+            old_file = UPLOAD_DIR / Path(old_image_url).name
 
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc))
+            if old_file.exists():
+                try:
+                    old_file.unlink()
+                except OSError:
+                    pass
 
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        return updated_product
+
+    except Exception:
+        db.rollback()
+
+        # Remove newly uploaded image if the update fails
+        if new_image_url:
+            new_file = UPLOAD_DIR / Path(new_image_url).name
+
+            if new_file.exists():
+                new_file.unlink()
+
+        raise
 
 
-# Deactivate a product
 @router.patch(
     "/{product_id}/status",
     response_model=ProductResponse
 )
-def deactivate_product_api(
+def update_product_status_api(
     product_id: int,
+    status_data: ProductStatusUpdate,
     current_user: User = Depends(require_roles(UserRole.SUPPLIER)),
     db: Session = Depends(get_db)
 ):
     try:
-        return remove_product(
+        return update_product_status(
             db=db,
             current_user=current_user,
-            product_id=product_id
+            product_id=product_id,
+            is_active=status_data.is_active
         )
 
     except LookupError as exc:
@@ -149,34 +228,6 @@ def deactivate_product_api(
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-
-
-# Activate a product
-@router.patch(
-    "/{product_id}/activate",
-    response_model=ProductResponse
-)
-def activate_product_api(
-    product_id: int,
-    current_user: User = Depends(require_roles(UserRole.SUPPLIER)),
-    db: Session = Depends(get_db)
-):
-    try:
-        return restore_product(
-            db=db,
-            current_user=current_user,
-            product_id=product_id
-        )
-
-    except LookupError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail=str(exc))
-
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-
 
 # Adjust product stock
 @router.patch(
@@ -209,65 +260,3 @@ def adjust_product_stock_api(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-
-# Upload or replace a product image
-@router.post(
-    "/{product_id}/image",
-    response_model=ProductResponse
-)
-async def upload_product_image_api(
-    product_id: int,
-    file: UploadFile = File(...),
-    current_user: User = Depends(
-        require_roles(UserRole.SUPPLIER)
-    ),
-    db: Session = Depends(get_db)
-):
-    # 1. Check whether the product exists
-    product = get_product_by_id(db, product_id)
-
-    if product is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Product not found"
-        )
-
-    # 2. Remember the existing image
-    old_image_url = product.image_url
-
-    # 3. Validate and save the new image
-    image_url = await save_product_image(file, product_id)
-
-    # 4. Update the image URL in the database
-    try:
-        updated_product = edit_product(
-            db=db,
-            current_user=current_user,
-            product_id=product_id,
-            product_data=ProductUpdate(image_url=image_url)
-        )
-
-    except Exception:
-        db.rollback()
-
-        # Remove the new file if the database update fails
-        if image_url != old_image_url:
-            new_file = UPLOAD_DIR / Path(image_url).name
-
-            if new_file.exists():
-                new_file.unlink()
-
-        raise
-
-    # 5. Delete the previous image after successful update
-    if old_image_url and old_image_url != image_url:
-        old_file = UPLOAD_DIR / Path(old_image_url).name
-
-        if old_file.exists():
-            try:
-                old_file.unlink()
-            except OSError:
-                # Keep the updated product even if old-file cleanup fails
-                pass
-
-    return updated_product

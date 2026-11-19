@@ -280,6 +280,7 @@ def place_order(
         db.rollback()
         raise
 
+
 def edit_order(
     db: Session,
     current_user: User,
@@ -293,27 +294,71 @@ def edit_order(
         order = get_order_by_id(db, order_id)
 
         if not order:
-            raise ValueError("Order not found")
+            raise LookupError("Order not found")
 
         if order.resident_id != current_user.id:
-            raise ValueError("You cannot edit this order")
+            raise PermissionError("You cannot edit this order")
 
         if order.status != OrderStatus.PENDING:
             raise ValueError("Only pending orders can be edited")
 
-        # Validate updated products
-        products = validate_order_products(db, items)
+        # Get existing product quantities
+        old_quantities = {}
+        for item in order.items:
+            old_quantities[item.product_id] = (
+                old_quantities.get(item.product_id, 0) + item.quantity
+            )
 
-        new_total = calculate_order_total(items, products)
+        # Start with existing quantities
+        new_quantities = old_quantities.copy()
+
+        # Update only products included in the request
+        for item in items:
+            new_quantities[item.product_id] = item.quantity
+
+        # Validate updated products and stock availability
+        updated_products = get_products_by_ids(
+            db, list(new_quantities.keys())
+        )
+        product_map = {
+            product.id: product for product in updated_products
+        }
+
+        for product_id, quantity in new_quantities.items():
+            product = product_map.get(product_id)
+
+            if not product:
+                raise LookupError(f"Product {product_id} not found")
+
+            if not product.is_active:
+                raise ValueError(f"{product.name} is unavailable")
+
+            difference = quantity - old_quantities.get(product_id, 0)
+            available_stock = (
+                product.stock_on_hand - product.stock_reserved
+            )
+
+            if difference > available_stock:
+                raise ValueError(
+                    f"Insufficient stock for {product.name}"
+                )
+
+        # Calculate complete updated order total
+        new_total = sum(
+            (
+                product_map[product_id].retail_price * quantity
+                for product_id, quantity in new_quantities.items()
+            ),
+            Decimal("0.00")
+        )
+
+        # Adjust wallet based on the difference
         old_total = order.total_amount
         wallet_difference = new_total - old_total
 
-        # Adjust wallet
         if wallet_difference > 0:
             deducted = deduct_wallet_balance(
-                db,
-                current_user.id,
-                wallet_difference
+                db, current_user.id, wallet_difference
             )
 
             if not deducted:
@@ -331,26 +376,10 @@ def edit_order(
                 .execution_options(synchronize_session=False)
             )
 
-        # Calculate quantity differences for stock
-        old_quantities = {}
-        for item in order.items:
-            old_quantities[item.product_id] = (
-                old_quantities.get(item.product_id, 0) + item.quantity
-            )
-
-        new_quantities = {}
-        for item in items:
-            new_quantities[item.product_id] = (
-                new_quantities.get(item.product_id, 0) + item.quantity
-            )
-
-        all_product_ids = set(old_quantities) | set(new_quantities)
-
-        for product_id in all_product_ids:
-            difference = (
-                new_quantities.get(product_id, 0)
-                - old_quantities.get(product_id, 0)
-            )
+        # Adjust stock reservations
+        for product_id, new_quantity in new_quantities.items():
+            old_quantity = old_quantities.get(product_id, 0)
+            difference = new_quantity - old_quantity
 
             if difference > 0:
                 if not reserve_product_stock(db, product_id, difference):
@@ -366,17 +395,29 @@ def edit_order(
                         f"Could not release stock for product {product_id}"
                     )
 
-        # Replace existing order items
-        delete_order_items(db, order.id)
+        # Update existing items and add new products
+        existing_product_ids = set()
 
-        new_order_items = prepare_order_items(items, products)
+        for order_item in order.items:
+            product_id = order_item.product_id
+            order_item.quantity = new_quantities[product_id]
+            existing_product_ids.add(product_id)
 
-        for item in new_order_items:
-            item.order_id = order.id
+        # Add products that are not already in the order
+        for product_id, quantity in new_quantities.items():
+            if product_id not in existing_product_ids:
+                product = product_map[product_id]
 
-        create_order_items(db, new_order_items)
+                new_order_item = OrderItem(
+                    order_id=order.id,
+                    product_id=product_id,
+                    quantity=quantity,
+                    retail_price=product.retail_price,
+                    final_unit_price=None
+                )
 
-        # Update order total
+                db.add(new_order_item)
+
         order.total_amount = new_total
 
         db.commit()

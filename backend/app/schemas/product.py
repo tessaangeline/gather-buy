@@ -29,6 +29,9 @@ class ProductUpdate(BaseModel):
         decimal_places=2
     )
 
+class ProductStatusUpdate(BaseModel):
+    is_active: bool
+
 class StockAdjustment(BaseModel):
     quantity: int = Field(gt=0)
     operation: str = Field(pattern="^(ADD|REMOVE)$")

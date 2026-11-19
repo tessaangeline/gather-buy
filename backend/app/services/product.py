@@ -131,47 +131,34 @@ def edit_product(
 
     return update_product_record(db, product, update_data)
 
-def remove_product(
+
+def update_product_status(
     db: Session,
     current_user: User,
-    product_id: int
+    product_id: int,
+    is_active: bool
 ) -> Product:
 
     if current_user.role != UserRole.SUPPLIER:
-        raise PermissionError(
-            "Only Supplier can deactivate products"
-        )
+        raise PermissionError("Only suppliers can update product status")
 
     product = get_product_by_id(db, product_id)
 
     if product is None:
         raise LookupError("Product not found")
 
-    if not product.is_active:
-        raise ValueError("Product is already inactive")
-
-    return deactivate_product_record(db, product)
-
-def restore_product(
-    db: Session,
-    current_user: User,
-    product_id: int
-) -> Product:
-
-    if current_user.role != UserRole.SUPPLIER:
-        raise PermissionError(
-            "Only Supplier can activate products"
+    if product.is_active == is_active:
+        raise ValueError(
+            "Product is already active" if is_active
+            else "Product is already inactive"
         )
 
-    product = get_product_by_id(db, product_id)
+    product.is_active = is_active
+    db.commit()
+    db.refresh(product)
 
-    if product is None:
-        raise LookupError("Product not found")
+    return product
 
-    if product.is_active:
-        raise ValueError("Product is already active")
-
-    return activate_product_record(db, product)
 
 def adjust_stock(
     db: Session,
