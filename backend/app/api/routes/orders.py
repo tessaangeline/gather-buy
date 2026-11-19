@@ -70,13 +70,13 @@ def place_order_api(
             status_code=403,
             detail=str(exc)
         )
-
+    #requested product doesn't exist 
     except LookupError as exc:
         raise HTTPException(
             status_code=404,
             detail=str(exc)
         )
-
+    #insufficient wallet balance or insufficient stock
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
