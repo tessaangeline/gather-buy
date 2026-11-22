@@ -1,12 +1,8 @@
-function App() {
-  const userName: string = "Angeline";
 
-  return (
-    <div>
-      <h1>Welcome to Gather Buy</h1>
-      <p>Hello, {userName}!</p>
-    </div>
-  );
+import AppRouter from "./app/router";
+
+function App() {
+  return <AppRouter />;
 }
 
 export default App;
