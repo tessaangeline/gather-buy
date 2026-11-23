@@ -12,7 +12,8 @@ from app.services.user import (
     list_suppliers,
     list_residents,
     edit_user_by_id,
-    change_user_status
+    change_user_status,
+    SupplierAlreadyExistsError,
 )
 
 
@@ -54,12 +55,18 @@ def create_user_api(
             detail=str(exc)
         )
 
+    except SupplierAlreadyExistsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc)
+        )
+    
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(exc)
         )
-
+    
 @router.get("/apartment-admins", response_model=list[UserResponse])
 def get_apartment_admins_api(
     current_user: User = Depends(

@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import auth, communities, users, products, orders
 from app.scheduler import start_scheduler, scheduler
@@ -17,6 +18,14 @@ app = FastAPI(
     title="Gather Buy API",
     description="Community-Based Bulk Ordering Platform",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Configure image uploads directory

@@ -1,0 +1,175 @@
+
+.admins-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.admins-header h2 {
+  color: #173f35;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.admins-header p {
+  color: #777;
+  font-size: 14px;
+}
+
+.admins-table-container {
+  background: white;
+  border: 1px solid #e5ebe6;
+  border-radius: 12px;
+  overflow-x: auto;
+}
+
+.admins-table-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 22px 24px;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.admins-table-heading h3 {
+  color: #173f35;
+}
+
+.admins-table-heading span {
+  color: #777;
+  font-size: 13px;
+}
+
+.admins-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.admins-table th,
+.admins-table td {
+  padding: 16px 24px;
+  border-bottom: 1px solid #edf0ed;
+  font-size: 14px;
+}
+
+.admins-table th {
+  background: #f8faf8;
+  color: #68756e;
+  font-weight: 600;
+}
+
+.admins-table td {
+  color: #40554a;
+}
+
+.admins-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-status {
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.admin-status.active {
+  background: #e8f5ec;
+  color: #267344;
+}
+
+.admin-status.inactive {
+  background: #fff0f0;
+  color: #b42318;
+}
+
+.deactivate-button,
+.activate-button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.deactivate-button {
+  background: #fff0f0;
+  color: #b42318;
+}
+
+.activate-button {
+  background: #e8f5ec;
+  color: #267344;
+}
+
+.admins-message {
+  padding: 28px 24px;
+  color: #777;
+  font-size: 14px;
+}
+
+.admins-error {
+  background: #fff0f0;
+  color: #b42318;
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 700px) {
+  .admins-table th,
+  .admins-table td {
+    padding: 12px;
+    white-space: nowrap;
+  }
+}
+
+.status-toggle {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 25px;
+  cursor: pointer;
+}
+
+.status-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background-color: #ccc;
+  border-radius: 25px;
+  transition: 0.25s;
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  height: 19px;
+  width: 19px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.25s;
+}
+
+.status-toggle input:checked + .toggle-slider {
+  background-color: #267344;
+}
+
+.status-toggle input:checked + .toggle-slider::before {
+  transform: translateX(21px);
+}
+
+.status-toggle input:focus-visible + .toggle-slider {
+  outline: 2px solid #245342;
+  outline-offset: 3px;
+}

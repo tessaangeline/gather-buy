@@ -3,7 +3,14 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 import LoginPage from "../features/auth/LoginPage";
 import ProtectedRoute from "../features/auth/ProtectedRoute";
+import SuperAdminDashboard from "../features/dashboard/SuperAdminDashboard";
+import CommunitiesPage from "../features/communities/CommunitiesPage";
+import ApartmentAdminsPage from "../features/users/ApartmentAdminsPage";
+import SuppliersPage from "../features/users/SuppliersPage";
+
 import type { User } from "../features/auth/authService";
+
+
 
 function getDashboardPath(role: User["role"]): string {
   const paths: Record<User["role"], string> = {
@@ -64,13 +71,40 @@ function AppRouter() {
         <Route path="/login" element={<LoginRoute />} />
 
         <Route
-          path="/super-admin/dashboard"
-          element={
-            <ProtectedRoute allowedRoles={["SUPER_ADMIN"]}>
-              <DashboardPlaceholder />
-            </ProtectedRoute>
-          }
-        />
+            path="/super-admin/dashboard"
+            element={
+                <ProtectedRoute allowedRoles={["SUPER_ADMIN"]}>
+                <SuperAdminDashboard />
+                </ProtectedRoute>
+            }
+            />
+
+        <Route
+            path="/super-admin/communities"
+            element={
+                <ProtectedRoute allowedRoles={["SUPER_ADMIN"]}>
+                <CommunitiesPage />
+                </ProtectedRoute>
+            }
+            />
+
+        <Route
+            path="/super-admin/admins"
+            element={
+                <ProtectedRoute allowedRoles={["SUPER_ADMIN"]}>
+                <ApartmentAdminsPage />
+                </ProtectedRoute>
+            }
+            />
+
+        <Route
+            path="/super-admin/suppliers"
+            element={
+                <ProtectedRoute allowedRoles={["SUPER_ADMIN"]}>
+                <SuppliersPage />
+                </ProtectedRoute>
+            }
+            />
 
         <Route
           path="/apartment-admin/dashboard"

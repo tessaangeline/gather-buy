@@ -1,6 +1,6 @@
 
 from sqlalchemy.orm import Session
-
+from sqlalchemy.exc import IntegrityError
 from decimal import Decimal
 
 from app.models.user import User, UserRole
@@ -17,6 +17,8 @@ from app.repositories.user import (
 from app.repositories.community import get_community_by_id
 from app.core.security import hash_password
 
+class SupplierAlreadyExistsError(Exception):
+    pass
 
 ROLE_PERMISSIONS = {
     UserRole.SUPER_ADMIN: {
@@ -46,6 +48,18 @@ def register_user(
         raise PermissionError(
             "You are not authorized to create this account type"
         )
+
+    # Only one Supplier account is allowed in the application
+    if role == UserRole.SUPPLIER:
+        existing_suppliers = get_suppliers(db)
+
+        if existing_suppliers:
+            raise SupplierAlreadyExistsError(
+                "A supplier account already exists. "
+                "Only one supplier is allowed."
+            )
+
+        
 
     # 2. Check whether email already exists
     email = email.strip().lower()
@@ -114,7 +128,31 @@ def register_user(
     }
 
     # 5. Save user
-    return create_user(db, user_data)
+
+    try:
+        return create_user(db, user_data)
+
+    except IntegrityError as exc:
+        db.rollback()
+
+        # Check whether the database rejected this because
+        # another Supplier account already exists.
+        constraint_name = getattr(
+            getattr(exc.orig, "diag", None),
+            "constraint_name",
+            None
+        )
+
+        if (
+            role == UserRole.SUPPLIER
+            and constraint_name == "uq_users_single_supplier"
+        ):
+            raise SupplierAlreadyExistsError(
+                "A supplier account already exists. "
+                "Only one supplier is allowed."
+            ) from exc
+
+        raise
 
 
 def list_apartment_admins(db: Session):
