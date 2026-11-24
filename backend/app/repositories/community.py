@@ -26,3 +26,23 @@ def get_community_by_id(
 def get_all_communities(db: Session) -> list[Community]:
     return db.query(Community).all()
 
+def update_community(
+    db: Session,
+    community: Community,
+    update_data: dict
+) -> Community:
+    for key, value in update_data.items():
+        setattr(community, key, value)
+
+    db.commit()
+    db.refresh(community)
+
+    return community
+
+
+def delete_community(
+    db: Session,
+    community: Community
+) -> None:
+    db.delete(community)
+    db.commit()

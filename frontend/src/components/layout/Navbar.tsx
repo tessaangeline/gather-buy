@@ -1,4 +1,6 @@
 
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../features/auth/AuthContext";
 
 interface NavbarProps {
@@ -6,7 +8,21 @@ interface NavbarProps {
 }
 
 function Navbar({ title }: NavbarProps) {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [error, setError] = useState("");
+
+  const handleLogout = async () => {
+    try {
+      setError("");
+      await logout();
+
+      navigate("/login", { replace: true });
+    } catch (err) {
+      console.error("Logout failed:", err);
+      setError("Unable to log out. Please try again.");
+    }
+  };
 
   return (
     <header className="dashboard-navbar">
@@ -24,7 +40,16 @@ function Navbar({ title }: NavbarProps) {
           <strong>{user?.full_name}</strong>
           <span>{user?.role.replaceAll("_", " ")}</span>
         </div>
+
+        <button
+          className="navbar-logout-btn"
+          onClick={handleLogout}
+        >
+          Logout
+        </button>
       </div>
+
+      {error && <p className="navbar-error">{error}</p>}
     </header>
   );
 }

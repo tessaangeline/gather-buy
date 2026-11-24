@@ -15,6 +15,7 @@ class UserUpdate(BaseModel):
     full_name: str | None = None
     email: EmailStr | None = None
     flat_number: str | None = None
+    community_id: int | None = None
 
 class UserStatusUpdate(BaseModel):
     is_active: bool

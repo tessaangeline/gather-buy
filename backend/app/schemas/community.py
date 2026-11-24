@@ -5,6 +5,10 @@ class CommunityCreate(BaseModel):
     name: str
     address: str
 
+class CommunityUpdate(BaseModel):
+    name: str | None = None
+    address: str | None = None
+
 
 class CommunityResponse(BaseModel):
     id: int

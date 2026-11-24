@@ -19,7 +19,6 @@ export interface CreateApartmentAdminData {
   community_id: number;
 }
 
-
 export interface Supplier {
   id: number;
   full_name: string;
@@ -35,6 +34,12 @@ export interface CreateSupplierData {
   email: string;
   password: string;
   role: "SUPPLIER";
+}
+
+export interface UpdateUserData {
+  full_name?: string;
+  email?: string;
+  community_id?: number;
 }
 
 export const getSuppliers = async (): Promise<Supplier[]> => {
@@ -83,4 +88,18 @@ export const updateApartmentAdminStatus = async (
   });
 
   return response.data;
+};
+
+export const updateUser = async (
+  userId: number,
+  data: UpdateUserData
+) => {
+  const response = await api.put(`/users/${userId}`, data);
+  return response.data;
+};
+
+export const deleteUser = async (
+  userId: number
+): Promise<void> => {
+  await api.delete(`/users/${userId}`);
 };

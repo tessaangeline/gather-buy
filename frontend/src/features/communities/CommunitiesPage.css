@@ -169,3 +169,36 @@ button:disabled {
     flex-direction: column;
   }
 }
+
+.community-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.edit-community-btn,
+.delete-community-btn {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.edit-community-btn {
+  background: #e8f1eb;
+  color: #245c40;
+}
+
+.delete-community-btn {
+  background: #fdeaea;
+  color: #b42318;
+}
+
+.edit-community-btn:hover {
+  background: #d5e8da;
+}
+
+.delete-community-btn:hover {
+  background: #f8d4d4;
+}

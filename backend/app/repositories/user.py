@@ -97,3 +97,7 @@ def deduct_wallet_balance(
     )
 
     return result.rowcount == 1
+
+def delete_user(db: Session, user: User) -> None:
+    db.delete(user)
+    db.commit()

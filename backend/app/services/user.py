@@ -12,7 +12,8 @@ from app.repositories.user import (
     update_user_status,
     get_apartment_admins,
     get_suppliers,
-    get_residents_by_community
+    get_residents_by_community,
+    delete_user,
 )
 from app.repositories.community import get_community_by_id
 from app.core.security import hash_password
@@ -232,6 +233,19 @@ def edit_user(
 
         update_data["flat_number"] = update_data["flat_number"].strip()
 
+    if "community_id" in update_data:
+        if target_user.role != UserRole.APARTMENT_ADMIN:
+            raise ValueError(
+                "Community can only be changed for Apartment Admins"
+            )
+
+        community = get_community_by_id(
+            db,
+            update_data["community_id"]
+        )
+
+        if not community:
+            raise ValueError("Community does not exist")
     # 4. Update the database record
     return update_user(db, target_user, update_data)
 
@@ -301,3 +315,32 @@ def change_user_status(
         user=target_user,
         is_active=is_active
     )
+
+def delete_user_by_id(
+    db: Session,
+    current_user: User,
+    user_id: int
+):
+    # 1. Find the user
+    target_user = get_user_by_id(db, user_id)
+
+    if not target_user:
+        raise LookupError("User not found")
+
+    # 2. Only Super Admin can perform this operation
+    if current_user.role != UserRole.SUPER_ADMIN:
+        raise PermissionError(
+            "Only Super Admin can delete users"
+        )
+
+    # 3. Restrict deletion to Apartment Admins and Suppliers
+    if target_user.role not in {
+        UserRole.APARTMENT_ADMIN,
+        UserRole.SUPPLIER
+    }:
+        raise PermissionError(
+            "Super Admin can only delete Apartment Admins and Suppliers"
+        )
+
+    # 4. Delete the user
+    delete_user(db, target_user)

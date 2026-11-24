@@ -258,3 +258,25 @@
   border-radius: 7px;
   cursor: pointer;
 }
+
+.navbar-logout-btn {
+  padding: 9px 16px;
+  background: #fdeaea;
+  color: #b42318;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 20px;
+  transition: background 0.2s ease;
+}
+
+.navbar-logout-btn:hover {
+  background: #f8d4d4;
+}
+
+.navbar-error {
+  color: #b42318;
+  font-size: 13px;
+}

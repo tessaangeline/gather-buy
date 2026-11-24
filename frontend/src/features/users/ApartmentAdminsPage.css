@@ -173,3 +173,41 @@
   outline: 2px solid #245342;
   outline-offset: 3px;
 }
+
+.admin-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.edit-admin-btn,
+.delete-admin-btn {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.edit-admin-btn {
+  background: #e8f1eb;
+  color: #245c40;
+}
+
+.delete-admin-btn {
+  background: #fdeaea;
+  color: #b42318;
+}
+
+.edit-admin-btn:hover {
+  background: #d5e8da;
+}
+
+.delete-admin-btn:hover {
+  background: #f8d4d4;
+}
+
+.admin-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

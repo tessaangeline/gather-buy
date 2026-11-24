@@ -5,6 +5,8 @@ import {
   getApartmentAdmins,
   updateApartmentAdminStatus,
   createApartmentAdmin,
+  updateUser,
+  deleteUser,
   type ApartmentAdmin,
 } from "./userService";
 import "./ApartmentAdminsPage.css";
@@ -26,6 +28,12 @@ function ApartmentAdminsPage() {
     const [password, setPassword] = useState("");
     const [communityId, setCommunityId] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [editingAdmin, setEditingAdmin] =
+     useState<ApartmentAdmin | null>(null);
+    const [editFullName, setEditFullName] = useState("");
+    const [editEmail, setEditEmail] = useState("");
+    const [editCommunityId, setEditCommunityId] = useState("");
+    const [editSubmitting, setEditSubmitting] = useState(false);
 
   const fetchAdmins = async () => {
     try {
@@ -88,7 +96,76 @@ function ApartmentAdminsPage() {
         setSubmitting(false);
     }
     };
- 
+
+    const handleEditClick = (admin: ApartmentAdmin) => {
+        setEditingAdmin(admin);
+
+        setEditFullName(admin.full_name);
+        setEditEmail(admin.email);
+        setEditCommunityId(String(admin.community_id ?? ""));
+        };
+
+    const handleUpdateAdmin = async (
+        event: React.FormEvent<HTMLFormElement>
+        ) => {
+        event.preventDefault();
+
+        if (!editingAdmin) return;
+
+        try {
+            setEditSubmitting(true);
+            setError("");
+
+            const updatedAdmin = await updateUser(editingAdmin.id, {
+            full_name: editFullName.trim(),
+            email: editEmail.trim(),
+            community_id: Number(editCommunityId),
+            });
+
+            setAdmins((currentAdmins) =>
+            currentAdmins.map((admin) =>
+                admin.id === editingAdmin.id
+                ? { ...admin, ...updatedAdmin }
+                : admin
+            )
+            );
+
+            setEditingAdmin(null);
+
+        } catch (err) {
+            console.error("Failed to update apartment admin:", err);
+            setError("Unable to update apartment admin. Please check the details.");
+        } finally {
+            setEditSubmitting(false);
+        }
+        };
+
+const handleDeleteAdmin = async (admin: ApartmentAdmin) => {
+  const confirmed = window.confirm(
+    `Are you sure you want to permanently delete ${admin.full_name}? This action cannot be undone.`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    setError("");
+
+    await deleteUser(admin.id);
+
+    setAdmins((currentAdmins) =>
+      currentAdmins.filter((item) => item.id !== admin.id)
+    );
+
+    if (editingAdmin?.id === admin.id) {
+      setEditingAdmin(null);
+    }
+
+  } catch (err) {
+    console.error("Failed to delete apartment admin:", err);
+    setError("Unable to delete apartment admin.");
+  }
+};
+        
 
   const handleStatusChange = async (admin: ApartmentAdmin) => {
     try {
@@ -203,6 +280,64 @@ function ApartmentAdminsPage() {
     </form>
     )}
 
+    {editingAdmin && (
+        <form
+            className="admin-form"
+            onSubmit={handleUpdateAdmin}
+            autoComplete="off"
+        >
+            <h3>Edit Apartment Admin</h3>
+
+            <label htmlFor="edit-admin-name">Full Name</label>
+            <input
+            id="edit-admin-name"
+            type="text"
+            value={editFullName}
+            onChange={(e) => setEditFullName(e.target.value)}
+            required
+            />
+
+            <label htmlFor="edit-admin-email">Email</label>
+            <input
+            id="edit-admin-email"
+            type="email"
+            value={editEmail}
+            onChange={(e) => setEditEmail(e.target.value)}
+            required
+            />
+
+            <label htmlFor="edit-admin-community">Community</label>
+            <select
+            id="edit-admin-community"
+            value={editCommunityId}
+            onChange={(e) => setEditCommunityId(e.target.value)}
+            required
+            >
+            <option value="">Select a community</option>
+
+            {communities.map((community) => (
+                <option key={community.id} value={community.id}>
+                {community.name}
+                </option>
+            ))}
+            </select>
+
+            <div className="admin-form-actions">
+            <button
+                type="button"
+                onClick={() => setEditingAdmin(null)}
+                disabled={editSubmitting}
+            >
+                Cancel
+            </button>
+
+            <button type="submit" disabled={editSubmitting}>
+                {editSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+            </div>
+        </form>
+        )}
+
 
       {error && <div className="admins-error">{error}</div>}
 
@@ -226,7 +361,7 @@ function ApartmentAdminsPage() {
                 <th>Email</th>
                 <th>Community</th>
                 <th>Status</th>
-                <th>Action</th>
+                <th>Actions</th>
               </tr>
             </thead>
 
@@ -252,7 +387,8 @@ function ApartmentAdminsPage() {
                     </span>
                   </td>
                   <td>
-                    <label className="status-toggle">
+                    <div className="admin-actions">
+                        <label className="status-toggle">
                         <input
                             type="checkbox"
                             checked={admin.is_active}
@@ -261,7 +397,24 @@ function ApartmentAdminsPage() {
                         />
                         <span className="toggle-slider"></span>
                         </label>
-                  </td>
+
+                        <button
+                        type="button"
+                        className="edit-admin-btn"
+                        onClick={() => handleEditClick(admin)}
+                        >
+                        Edit
+                        </button>
+
+                        <button
+                        type="button"
+                        className="delete-admin-btn"
+                        onClick={() => handleDeleteAdmin(admin)}
+                        >
+                        Delete
+                        </button>
+                    </div>
+                    </td>
                 </tr>
               ))}
             </tbody>

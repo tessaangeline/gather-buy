@@ -8,6 +8,8 @@ import {
   getSuppliers,
   createSupplier,
   updateSupplierStatus,
+  updateUser,
+  deleteUser,
   type Supplier,
 } from "./userService";
 
@@ -25,6 +27,11 @@ function SuppliersPage() {
   const [password, setPassword] = useState("");
 
   const [submitting, setSubmitting] = useState(false);
+
+    const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+    const [editFullName, setEditFullName] = useState("");
+    const [editEmail, setEditEmail] = useState("");
+    const [editSubmitting, setEditSubmitting] = useState(false);  
 
   // Fetch existing Supplier accounts
   const fetchSuppliers = async () => {
@@ -91,6 +98,72 @@ function SuppliersPage() {
     }
   };
 
+  // Open the edit form with the Supplier's current details
+    const handleEditClick = (supplier: Supplier) => {
+    setEditingSupplier(supplier);
+    setEditFullName(supplier.full_name);
+    setEditEmail(supplier.email);
+    };
+
+    // Update Supplier details
+    const handleUpdateSupplier = async (
+    event: React.FormEvent<HTMLFormElement>
+    ) => {
+    event.preventDefault();
+
+    if (!editingSupplier) return;
+
+    try {
+        setEditSubmitting(true);
+        setError("");
+
+        const updatedSupplier = await updateUser(editingSupplier.id, {
+        full_name: editFullName.trim(),
+        email: editEmail.trim(),
+        });
+
+        setSuppliers((currentSuppliers) =>
+        currentSuppliers.map((supplier) =>
+            supplier.id === editingSupplier.id
+            ? { ...supplier, ...updatedSupplier }
+            : supplier
+        )
+        );
+
+        setEditingSupplier(null);
+    } catch (err) {
+        console.error("Failed to update Supplier:", err);
+        setError("Unable to update Supplier details. Please check the information.");
+    } finally {
+        setEditSubmitting(false);
+    }
+    };
+
+    // Permanently delete Supplier account
+    const handleDeleteSupplier = async (supplier: Supplier) => {
+    const confirmed = window.confirm(
+        `Are you sure you want to permanently delete ${supplier.full_name}? This action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+        setError("");
+
+        await deleteUser(supplier.id);
+
+        setSuppliers((currentSuppliers) =>
+        currentSuppliers.filter((item) => item.id !== supplier.id)
+        );
+
+        setEditingSupplier(null);
+        setShowForm(false);
+    } catch (err) {
+        console.error("Failed to delete Supplier:", err);
+        setError("Unable to delete Supplier account.");
+    }
+    };
+
   // Activate or deactivate the Supplier
   const handleStatusChange = async (supplier: Supplier) => {
     try {
@@ -137,7 +210,7 @@ function SuppliersPage() {
             >
             {showForm ? "Cancel" : "+ Add Supplier"}
             </button>
-            
+
 
         </div>
 
@@ -202,6 +275,51 @@ function SuppliersPage() {
           </form>
         )}
 
+        {editingSupplier && (
+        <form
+            className="supplier-form"
+            onSubmit={handleUpdateSupplier}
+            autoComplete="off"
+        >
+            <h2>Edit Supplier Details</h2>
+
+            <div className="supplier-form-group">
+            <label>Full Name</label>
+            <input
+                type="text"
+                value={editFullName}
+                onChange={(e) => setEditFullName(e.target.value)}
+                required
+            />
+            </div>
+
+            <div className="supplier-form-group">
+            <label>Email</label>
+            <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                required
+            />
+            </div>
+
+            <button
+            type="submit"
+            className="submit-supplier-btn"
+            disabled={editSubmitting}
+            >
+            {editSubmitting ? "Saving..." : "Save Changes"}
+            </button>
+
+            <button
+            type="button"
+            onClick={() => setEditingSupplier(null)}
+            >
+            Cancel
+            </button>
+        </form>
+        )}
+
         <div className="suppliers-table-container">
           <h2>Supplier Details</h2>
 
@@ -240,18 +358,32 @@ function SuppliersPage() {
                       </span>
                     </td>
                     <td>
-                      <label className="status-toggle">
-                        <input
-                          type="checkbox"
-                          checked={supplier.is_active}
-                          onChange={() =>
-                            handleStatusChange(supplier)
-                          }
-                          aria-label={`Change status for ${supplier.full_name}`}
-                        />
-                        <span className="toggle-slider"></span>
-                      </label>
-                    </td>
+                        <div className="supplier-actions">
+                            <label className="status-toggle">
+                            <input
+                                type="checkbox"
+                                checked={supplier.is_active}
+                                onChange={() => handleStatusChange(supplier)}
+                                aria-label={`Change status for ${supplier.full_name}`}
+                            />
+                            <span className="toggle-slider"></span>
+                            </label>
+
+                            <button
+                            className="edit-supplier-btn"
+                            onClick={() => handleEditClick(supplier)}
+                            >
+                            Edit
+                            </button>
+
+                            <button
+                            className="delete-supplier-btn"
+                            onClick={() => handleDeleteSupplier(supplier)}
+                            >
+                            Delete
+                            </button>
+                        </div>
+                        </td>
                   </tr>
                 ))}
               </tbody>

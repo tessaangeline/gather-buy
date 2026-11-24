@@ -14,6 +14,7 @@ from app.services.user import (
     edit_user_by_id,
     change_user_status,
     SupplierAlreadyExistsError,
+    delete_user_by_id,
 )
 
 
@@ -164,6 +165,37 @@ def update_user_status_api(
             user_id=user_id,
             is_active=status_data.is_active
         )
+
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc)
+        )
+
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc)
+        )
+
+@router.delete("/{user_id}")
+def delete_user_api(
+    user_id: int,
+    current_user: User = Depends(
+        require_roles(UserRole.SUPER_ADMIN)
+    ),
+    db: Session = Depends(get_db)
+):
+    try:
+        delete_user_by_id(
+            db=db,
+            current_user=current_user,
+            user_id=user_id
+        )
+
+        return {
+            "message": "User deleted successfully"
+        }
 
     except LookupError as exc:
         raise HTTPException(
