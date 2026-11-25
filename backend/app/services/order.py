@@ -1,16 +1,17 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import update
 
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP
+from collections import defaultdict
+
 
 from app.repositories.user import deduct_wallet_balance
-from app.repositories.order import get_community_bulk_orders, create_order, create_order_items, delete_order_items
+from app.repositories.order import get_community_bulk_orders, create_order, create_order_items, delete_order_items, get_orders_for_community_date
 from app.schemas.bulk_order import BulkOrderResponse, BulkOrderProductResponse
 from app.models.user import User, UserRole
-from app.models.order import Order
 from app.models.order_item import OrderItem
-from app.utils.order_utils import is_order_window_open
+from app.utils.order_utils import is_order_window_open, INDIA_TIMEZONE, ORDER_CUTOFF
 from app.repositories.product import get_products_by_ids, reserve_product_stock, release_product_stock, consume_reserved_stock
 from app.schemas.order_item import OrderItemCreate
 from app.models.product import Product
@@ -18,7 +19,9 @@ from app.models.order import Order, OrderStatus
 
 from app.repositories.order import (
     get_resident_orders,
-    get_order_by_id
+    get_order_by_id,
+    get_orders_for_community_date_read,
+    get_all_bulk_order_cycles,
 )
 
 def list_my_orders(
@@ -87,10 +90,22 @@ def get_supplier_bulk_orders(
         for product_id, product_name, unit, retail_price, total_quantity, resident_count in bulk_orders
     ]
 
+    orders = get_orders_for_community_date_read(
+    db, community_id, order_date
+)
+
+    if not orders:
+        raise ValueError("No orders found for this community and date.")
+
+    statuses = {order.status.value for order in orders}
+
+    status = statuses.pop() if len(statuses) == 1 else "MIXED"
+
     return BulkOrderResponse(
         community_id=community_id,
         order_date=order_date,
-        products=products
+        products=products,
+        status=status
     )
 
 def validate_resident_for_order(current_user: User) -> int:
@@ -576,3 +591,135 @@ def settle_community_orders(
     except Exception:
         db.rollback()
         raise
+
+def validate_bulk_order_cutoff(order_date: date):
+    now = datetime.now(INDIA_TIMEZONE)
+
+    if order_date > now.date():
+        raise ValueError("Cannot process orders for a future date.")
+
+    if order_date == now.date() and now.time() < ORDER_CUTOFF:
+        raise ValueError("Bulk orders can only be processed after 9 PM.")
+
+def confirm_community_bulk_order(db, current_user, community_id, order_date):
+    if current_user.role != "SUPPLIER":
+        raise PermissionError("Only suppliers can confirm bulk orders.")
+
+    try:
+        validate_bulk_order_cutoff(order_date)
+
+        orders = get_orders_for_community_date(
+            db, community_id, order_date
+        )
+
+        if not orders:
+            raise ValueError("No orders found for this community and date.")
+
+        if any(order.status != OrderStatus.PENDING for order in orders):
+            raise ValueError("All orders must be pending before confirmation.")
+
+        if any(order.final_amount is None for order in orders):
+            raise ValueError("All orders must be settled before confirmation.")
+
+        for order in orders:
+            order.status = OrderStatus.CONFIRMED
+
+        db.commit()
+
+        return {
+            "message": "Bulk order confirmed successfully.",
+            "community_id": community_id,
+            "order_date": order_date,
+            "confirmed_orders": len(orders)
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
+def dispatch_community_bulk_order(
+    db,
+    current_user,
+    community_id: int,
+    order_date: date
+):
+    if current_user.role != "SUPPLIER":
+        raise PermissionError("Only suppliers can dispatch bulk orders.")
+
+    try:
+        validate_bulk_order_cutoff(order_date)
+
+        orders = get_orders_for_community_date(
+            db, community_id, order_date
+        )
+
+        if not orders:
+            raise ValueError("No orders found for this community and date.")
+
+        if any(order.status != OrderStatus.CONFIRMED for order in orders):
+            raise ValueError("All orders must be confirmed before dispatch.")
+
+        # Aggregate quantities by product across all resident orders.
+        product_quantities = defaultdict(int)
+
+        for order in orders:
+            for item in order.items:
+                product_quantities[item.product_id] += item.quantity
+
+        # Consume reserved stock once per product.
+        for product_id, quantity in product_quantities.items():
+            success = consume_reserved_stock(
+                db, product_id, quantity
+            )
+
+            if not success:
+                raise ValueError(
+                    f"Unable to consume reserved stock for product {product_id}."
+                )
+
+        # Update every resident order together.
+        for order in orders:
+            order.status = OrderStatus.DISPATCHED
+
+        db.commit()
+
+        return {
+            "message": "Bulk order dispatched successfully.",
+            "community_id": community_id,
+            "order_date": order_date,
+            "dispatched_orders": len(orders)
+        }
+
+    except Exception:
+        db.rollback()
+        raise
+
+def list_supplier_bulk_order_cycles(
+    db: Session,
+    current_user: User
+):
+    if current_user.role != UserRole.SUPPLIER:
+        raise PermissionError("Only suppliers can view bulk orders.")
+
+    cycles = get_all_bulk_order_cycles(db)
+
+    results = []
+
+    for cycle in cycles:
+        if cycle.status_count == 1:
+            status = cycle.single_status.value
+        else:
+            status = "MIXED"
+
+        results.append({
+            "community_id": cycle.community_id,
+            "community_name": cycle.community_name,
+            "order_date": cycle.order_date,
+            "total_orders": cycle.total_orders,
+            "total_residents": cycle.total_residents,
+            "status": status
+        })
+
+    return results
+
+

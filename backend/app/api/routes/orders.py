@@ -7,20 +7,16 @@ from app.db.session import get_db
 from app.models.user import User, UserRole
 from app.schemas.order import OrderResponse, OrderCreate, OrderUpdate, OrderStatusUpdate
 from app.api.dependencies import get_current_user, require_roles
-from app.schemas.bulk_order import BulkOrderResponse
+from app.schemas.bulk_order import BulkOrderResponse, BulkOrderCycleResponse
 from app.services.order import (
     list_my_orders,
     get_order_details,
     place_order,
     get_supplier_bulk_orders,
     edit_order,
-    update_order_status,
-    settle_community_orders
-)
-
-from app.services.order import (
-    list_my_orders,
-    get_order_details
+    settle_community_orders, confirm_community_bulk_order,
+    dispatch_community_bulk_order,
+    list_supplier_bulk_order_cycles,
 )
 
 router = APIRouter(
@@ -160,30 +156,6 @@ def update_order(
             detail="Failed to update order"
         )
 
-@router.patch("/{order_id}/status", response_model=OrderResponse)
-def change_order_status(
-    order_id: int,
-    status_data: OrderStatusUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    try:
-        updated_order = update_order_status(
-            db,
-            current_user,
-            order_id,
-            status_data.status
-        )
-        return updated_order
-
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    except Exception:
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to update order status"
-        )
 
 @router.post("/settle")
 def settle_orders(
@@ -204,8 +176,59 @@ def settle_orders(
             community_id,
             order_date
         )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
     except Exception:
         raise HTTPException(
             status_code=500,
             detail="Failed to settle orders"
         )
+
+@router.patch("/bulk/confirm")
+def confirm_bulk_order(
+    community_id: int,
+    order_date: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        return confirm_community_bulk_order(
+            db, current_user, community_id, order_date
+        )
+
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.patch("/bulk/dispatch")
+def dispatch_bulk_order(
+    community_id: int,
+    order_date: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        return dispatch_community_bulk_order(
+            db, current_user, community_id, order_date
+        )
+
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/bulk/cycles", response_model=list[BulkOrderCycleResponse])
+def get_bulk_order_cycles(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        return list_supplier_bulk_order_cycles(db, current_user)
+
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))

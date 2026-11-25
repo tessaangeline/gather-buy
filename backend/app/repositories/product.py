@@ -54,6 +54,29 @@ def get_available_products(db: Session) -> list[Product]:
         .all()
     )
 
+from sqlalchemy import func, case
+
+def get_product_stats(db):
+    stats = db.query(
+        func.count(Product.id).label("total_products"),
+        func.count(
+            case((Product.is_active.is_(True), 1))
+        ).label("active_products"),
+        func.count(
+            case((
+                (Product.is_active.is_(True)) &
+                (Product.stock_on_hand <= Product.stock_reserved),
+                1
+            ))
+        ).label("out_of_stock")
+    ).one()
+
+    return {
+        "total_products": stats.total_products,
+        "active_products": stats.active_products,
+        "out_of_stock": stats.out_of_stock
+    }
+
 def update_product(
     db: Session,
     product: Product,

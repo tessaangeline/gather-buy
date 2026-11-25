@@ -12,7 +12,8 @@ from app.repositories.product import (
     deactivate_product as deactivate_product_record,
     activate_product as activate_product_record,
     adjust_product_stock as adjust_product_stock_record,
-    filter_products
+    filter_products,
+    get_product_stats,
 )
 
 def register_product(
@@ -86,7 +87,18 @@ def list_products(
         raise PermissionError(
             "You are not allowed to view products"
         )
-    
+
+def get_supplier_product_stats(
+    db: Session,
+    current_user: User
+):
+    if current_user.role != UserRole.SUPPLIER:
+        raise PermissionError(
+            "Only suppliers can view product statistics"
+        )
+
+    return get_product_stats(db)
+ 
 def edit_product(
     db: Session,
     current_user: User,

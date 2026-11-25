@@ -7,6 +7,10 @@ import SuperAdminDashboard from "../features/dashboard/SuperAdminDashboard";
 import CommunitiesPage from "../features/communities/CommunitiesPage";
 import ApartmentAdminsPage from "../features/users/ApartmentAdminsPage";
 import SuppliersPage from "../features/users/SuppliersPage";
+import ProductsPage from "../features/supplier/products/ProductsPage";
+import SupplierDashboard from "../features/supplier/dashboard/SupplierDashboard";
+import OrdersPage from "../features/supplier/orders/OrdersPage";
+
 
 import type { User } from "../features/auth/authService";
 
@@ -119,7 +123,25 @@ function AppRouter() {
           path="/supplier/dashboard"
           element={
             <ProtectedRoute allowedRoles={["SUPPLIER"]}>
-              <DashboardPlaceholder />
+              <SupplierDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/supplier/products"
+          element={
+            <ProtectedRoute allowedRoles={["SUPPLIER"]}>
+              <ProductsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/supplier/orders"
+          element={
+            <ProtectedRoute allowedRoles={["SUPPLIER"]}>
+              <OrdersPage />
             </ProtectedRoute>
           }
         />

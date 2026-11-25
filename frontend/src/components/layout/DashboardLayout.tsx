@@ -1,3 +1,5 @@
+
+import { useState } from "react";
 import "./DashboardLayout.css";
 import type { ReactNode } from "react";
 import Sidebar from "./Sidebar";
@@ -9,9 +11,20 @@ interface DashboardLayoutProps {
 }
 
 function DashboardLayout({ title, children }: DashboardLayoutProps) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const toggleSidebar = () => {
+    setIsCollapsed((prev) => !prev);
+  };
+
   return (
-    <div className="dashboard-layout">
-      <Sidebar />
+    <div
+      className={`dashboard-layout ${isCollapsed ? "sidebar-collapsed" : ""}`}
+    >
+      <Sidebar
+        isCollapsed={isCollapsed}
+        onToggle={toggleSidebar}
+      />
 
       <div className="dashboard-main">
         <Navbar title={title} />
@@ -23,7 +36,5 @@ function DashboardLayout({ title, children }: DashboardLayoutProps) {
     </div>
   );
 }
-
-
 
 export default DashboardLayout;

@@ -17,3 +17,12 @@ class BulkOrderResponse(BaseModel):
     community_id: int
     order_date: date
     products: list[BulkOrderProductResponse]
+    status: str
+
+class BulkOrderCycleResponse(BaseModel):
+    community_id: int
+    community_name: str
+    order_date: date
+    total_orders: int
+    total_residents: int
+    status: str

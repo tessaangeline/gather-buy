@@ -22,7 +22,7 @@ from app.schemas.product import (
     ProductUpdate,
     ProductResponse,
     ProductStatusUpdate,
-    StockAdjustment
+    StockAdjustment, 
 )
 from app.api.dependencies import require_roles
 
@@ -35,6 +35,7 @@ from app.services.product import (
     edit_product,
     update_product_status,
     adjust_stock,
+    get_supplier_product_stats,
 )
 
 
@@ -122,6 +123,28 @@ def get_products_api(
 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+# Get product statistics
+
+@router.get("/stats")
+def get_product_stats_api(
+    current_user: User = Depends(
+        require_roles(UserRole.SUPPLIER)
+    ),
+    db: Session = Depends(get_db)
+):
+    try:
+        return get_supplier_product_stats(
+            db=db,
+            current_user=current_user
+        )
+
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail=str(exc)
+        )
+    
 # Update a product
 
 @router.put(
