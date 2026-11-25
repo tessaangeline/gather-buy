@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import update
+from sqlalchemy import update, func
+from decimal import Decimal
 
 from app.models.user import User, UserRole
 
@@ -81,23 +82,56 @@ def update_user_status(
 def deduct_wallet_balance(
     db: Session,
     user_id: int,
-    amount
+    amount: Decimal
 ) -> bool:
 
     result = db.execute(
         update(User)
         .where(
             User.id == user_id,
-            User.wallet_balance >= amount
+            func.coalesce(
+                User.wallet_balance,
+                Decimal("0.00")
+            ) >= amount
         )
         .values(
-            wallet_balance=User.wallet_balance - amount
+            wallet_balance=func.coalesce(
+                User.wallet_balance,
+                Decimal("0.00")
+            ) - amount
         )
         .execution_options(synchronize_session=False)
     )
 
     return result.rowcount == 1
 
+
+def add_wallet_balance(
+    db: Session,
+    user_id: int,
+    amount: Decimal
+) -> bool:
+
+    result = db.execute(
+        update(User)
+        .where(
+            User.id == user_id,
+            User.role == UserRole.RESIDENT,
+            User.is_active.is_(True)
+        )
+        .values(
+            wallet_balance=func.coalesce(
+                User.wallet_balance,
+                Decimal("0.00")
+            ) + amount
+        )
+        .execution_options(synchronize_session=False)
+    )
+
+    return result.rowcount == 1
+
+
 def delete_user(db: Session, user: User) -> None:
     db.delete(user)
     db.commit()
+

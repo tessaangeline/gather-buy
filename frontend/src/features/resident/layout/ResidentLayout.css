@@ -1,0 +1,253 @@
+
+/* ========================================
+   RESIDENT LAYOUT
+======================================== */
+
+.resident-layout {
+  width: 100%;
+  min-height: 100vh;
+  background: #f7f8f5;
+  color: #243c31;
+}
+
+/* ========================================
+   HEADER
+======================================== */
+
+.resident-header {
+  width: 100%;
+  background: #ffffff;
+  border-bottom: 1px solid #e8ece7;
+
+  /* Compact header, no sticky behaviour */
+  position: relative;
+  padding: 12px 24px 14px;
+  z-index: 20;
+}
+
+.resident-header-top {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto 10px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Logo */
+
+.resident-logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #243c31;
+  text-decoration: none;
+  font-size: 20px;
+  font-weight: 750;
+  letter-spacing: -0.7px;
+}
+
+.resident-logo-mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #315c43;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+/* Logout */
+
+.resident-logout {
+  border: 1px solid #e1e7e1;
+  background: #ffffff;
+  color: #53645a;
+  padding: 8px 15px;
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s ease;
+}
+
+.resident-logout:hover {
+  background: #f2f5f1;
+}
+
+/* Delivery location */
+
+.resident-location {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.location-icon {
+  font-size: 22px;
+  color: #315c43;
+}
+
+.resident-location div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.resident-location small {
+  color: #89948b;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+.resident-location strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+/* ========================================
+   RESIDENT NAVIGATION
+======================================== */
+
+.resident-bottom-nav {
+  width: calc(100% - 48px);
+  max-width: 850px;
+  margin: 14px auto 0;
+  padding: 6px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 7px;
+
+  background: #f7f8f5;
+  border: 1px solid #e8ece7;
+  border-radius: 13px;
+}
+
+.resident-nav-item {
+  flex: 1;
+  min-width: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 10px 12px;
+  border-radius: 9px;
+
+  color: #7b897f;
+  text-decoration: none;
+  font-size: 17px;
+  transition: all 0.2s ease;
+}
+
+.resident-nav-item span {
+  font-size: 18px;
+}
+
+.resident-nav-item small {
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.resident-nav-item:hover {
+  background: #edf2ed;
+  color: #315c43;
+}
+
+.resident-nav-item.active {
+  background: #315c43;
+  color: #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.07);
+}
+
+/* ========================================
+   MAIN CONTENT
+======================================== */
+
+.resident-main {
+  width: 100%;
+  max-width: 1200px;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 24px 24px 65px;
+  min-width: 0;
+}
+
+/* ========================================
+   MOBILE
+======================================== */
+
+@media (max-width: 640px) {
+  .resident-header {
+    padding: 10px 16px;
+  }
+
+  .resident-header-top {
+    margin-bottom: 8px;
+  }
+
+  .resident-logo {
+    font-size: 18px;
+  }
+
+  .resident-logo-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .resident-location {
+    gap: 8px;
+  }
+
+  .resident-bottom-nav {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 7px 5px;
+    gap: 2px;
+
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+
+    height: 68px;
+    background: #ffffff;
+    border: none;
+    border-top: 1px solid #e8ece7;
+    border-radius: 0;
+
+    z-index: 30;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .resident-nav-item {
+    flex-direction: column;
+    gap: 3px;
+    padding: 5px 2px;
+    font-size: 19px;
+  }
+
+  .resident-nav-item span {
+    font-size: 19px;
+  }
+
+  .resident-nav-item small {
+    font-size: 10px;
+  }
+
+  .resident-main {
+    padding: 18px 16px 100px;
+  }
+}

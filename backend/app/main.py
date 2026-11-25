@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import auth, communities, users, products, orders
+from app.api.routes import auth, communities, users, products, orders, wallet
 from app.scheduler import start_scheduler, scheduler
 
 @asynccontextmanager
@@ -46,6 +46,7 @@ app.include_router(communities.router)
 app.include_router(users.router)
 app.include_router(products.router)
 app.include_router(orders.router)
+app.include_router(wallet.router)
 
 
 @app.get("/")

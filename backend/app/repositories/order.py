@@ -1,5 +1,5 @@
 
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, distinct, cast, Date
 
 from datetime import date, datetime, time, timedelta
@@ -32,8 +32,25 @@ def get_order_by_id(
 
     return (
         db.query(Order)
-        .options(joinedload(Order.items))
+        .options(
+            joinedload(Order.items).joinedload(OrderItem.product)
+        )
         .filter(Order.id == order_id)
+        .first()
+    )
+
+def get_order_by_id_for_update(
+    db: Session,
+    order_id: int
+) -> Order | None:
+
+    return (
+        db.query(Order)
+        .options(
+            selectinload(Order.items).selectinload(OrderItem.product)
+        )
+        .filter(Order.id == order_id)
+        .with_for_update(of=Order)
         .first()
     )
 
@@ -45,7 +62,9 @@ def get_resident_orders(
 
     return (
         db.query(Order)
-        .options(joinedload(Order.items))
+        .options(
+            joinedload(Order.items).joinedload(OrderItem.product)
+        )
         .filter(Order.resident_id == resident_id)
         .order_by(Order.order_date.desc())
         .all()
@@ -107,27 +126,6 @@ def delete_order_items(
         OrderItem.order_id == order_id
     ).delete(synchronize_session=False)
 
-def get_orders_for_community_date(
-    db: Session,
-    community_id: int,
-    order_date: date
-) -> list[Order]:
-
-    start_datetime = datetime.combine(order_date, time.min)
-    end_datetime = start_datetime + timedelta(days=1)
-
-    return (
-        db.query(Order)
-        .options(joinedload(Order.items))
-        .filter(
-            Order.community_id == community_id,
-            Order.order_date >= start_datetime,
-            Order.order_date < end_datetime
-        )
-        .order_by(Order.id)
-        .with_for_update()
-        .all()
-    )
 
 def get_orders_for_community_date(db, community_id, order_date):
     start_datetime = datetime.combine(order_date, time.min)

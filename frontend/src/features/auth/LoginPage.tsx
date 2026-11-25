@@ -9,7 +9,7 @@ function getDashboardPath(role: string): string {
     SUPER_ADMIN: "/super-admin/dashboard",
     APARTMENT_ADMIN: "/apartment-admin/dashboard",
     SUPPLIER: "/supplier/dashboard",
-    RESIDENT: "/resident/dashboard",
+    RESIDENT: "/resident/shop",
   };
 
   return paths[role] ?? "/login";

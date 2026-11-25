@@ -5,6 +5,7 @@ from sqlalchemy import Integer, Numeric, ForeignKey, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.models.product import Product
 
 from typing import TYPE_CHECKING
 
@@ -34,6 +35,8 @@ class OrderItem(Base):
         ForeignKey("products.id"),
         nullable=False
     )
+
+    product: Mapped["Product"] = relationship()
 
     quantity: Mapped[int] = mapped_column(
         Integer,

@@ -9,6 +9,7 @@ export interface User {
   is_active: boolean;
   community_id: number | null;
   flat_number: string | null;
+  wallet_balance: number | string | null;
 }
 
 interface LoginCredentials {

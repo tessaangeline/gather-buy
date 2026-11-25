@@ -5,7 +5,7 @@ from datetime import date
 
 from app.db.session import get_db
 from app.models.user import User, UserRole
-from app.schemas.order import OrderResponse, OrderCreate, OrderUpdate, OrderStatusUpdate
+from app.schemas.order import OrderResponse, OrderCreate, OrderUpdate
 from app.api.dependencies import get_current_user, require_roles
 from app.schemas.bulk_order import BulkOrderResponse, BulkOrderCycleResponse
 from app.services.order import (
@@ -41,6 +41,18 @@ def get_bulk_orders(
         )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+
+@router.get("/", response_model=list[OrderResponse])
+def get_my_orders_api(
+    current_user: User = Depends(
+        require_roles(UserRole.RESIDENT)
+    ),
+    db: Session = Depends(get_db)
+):
+    return list_my_orders(
+        db=db,
+        current_user=current_user
+    )
 
 @router.post(
     "/",
@@ -79,27 +91,6 @@ def place_order_api(
             detail=str(exc)
         )
 
-@router.get(
-    "/",
-    response_model=list[OrderResponse]
-)
-def get_my_orders_api(
-    current_user: User = Depends(
-        require_roles(UserRole.RESIDENT)
-    ),
-    db: Session = Depends(get_db)
-):
-    try:
-        return list_my_orders(
-            db=db,
-            current_user=current_user
-        )
-
-    except PermissionError as exc:
-        raise HTTPException(
-            status_code=403,
-            detail=str(exc)
-        )
 
 @router.get(
     "/{order_id}",
@@ -136,24 +127,34 @@ def update_order(
     order_id: int,
     order_data: OrderUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(
+        require_roles(UserRole.RESIDENT)
+    ),
 ):
     try:
-        updated_order = edit_order(
-            db,
-            current_user,
-            order_id,
-            order_data.items
+        return edit_order(
+            db=db,
+            current_user=current_user,
+            order_id=order_id,
+            items=order_data.items
         )
-        return updated_order
 
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-    except Exception:
+    except PermissionError as exc:
         raise HTTPException(
-            status_code=500,
-            detail="Failed to update order"
+            status_code=403,
+            detail=str(exc)
+        )
+
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail=str(exc)
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc)
         )
 
 
@@ -162,7 +163,9 @@ def settle_orders(
     community_id: int,
     order_date: date,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(
+    require_roles(UserRole.SUPPLIER)
+)
 ):
     if current_user.role != UserRole.SUPPLIER:
         raise HTTPException(
@@ -190,7 +193,9 @@ def confirm_bulk_order(
     community_id: int,
     order_date: date,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(
+    require_roles(UserRole.SUPPLIER)
+)
 ):
     try:
         return confirm_community_bulk_order(
@@ -209,7 +214,9 @@ def dispatch_bulk_order(
     community_id: int,
     order_date: date,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(
+    require_roles(UserRole.SUPPLIER)
+)
 ):
     try:
         return dispatch_community_bulk_order(
@@ -222,10 +229,12 @@ def dispatch_bulk_order(
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+
 @router.get("/bulk/cycles", response_model=list[BulkOrderCycleResponse])
 def get_bulk_order_cycles(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(
+    require_roles(UserRole.SUPPLIER))
 ):
     try:
         return list_supplier_bulk_order_cycles(db, current_user)

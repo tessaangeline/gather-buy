@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, ConfigDict
+from decimal import Decimal 
 
 from app.models.user import UserRole
 
@@ -28,5 +29,6 @@ class UserResponse(BaseModel):
     is_active: bool
     community_id: int | None = None
     flat_number: str | None = None
+    wallet_balance: Decimal | None = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import update
+from sqlalchemy import update, func
 
 from datetime import date, timedelta, datetime
 from decimal import Decimal, ROUND_HALF_UP
@@ -20,6 +20,7 @@ from app.models.order import Order, OrderStatus
 from app.repositories.order import (
     get_resident_orders,
     get_order_by_id,
+    get_order_by_id_for_update,
     get_orders_for_community_date_read,
     get_all_bulk_order_cycles,
 )
@@ -302,139 +303,193 @@ def edit_order(
     order_id: int,
     items: list[OrderItemCreate]
 ) -> Order:
+
     try:
+        # 1. Validate resident
+        if current_user.role != UserRole.RESIDENT:
+            raise PermissionError("Only residents can edit orders")
+
+        # 2. Check order cutoff
         if not is_order_window_open():
             raise ValueError("Order editing is closed for today")
 
-        order = get_order_by_id(db, order_id)
+        # 3. Retrieve and lock the order
+        order = get_order_by_id_for_update(db, order_id)
 
         if not order:
             raise LookupError("Order not found")
 
+        # 4. Verify ownership
         if order.resident_id != current_user.id:
             raise PermissionError("You cannot edit this order")
 
+        # 5. Only pending orders can be edited
         if order.status != OrderStatus.PENDING:
             raise ValueError("Only pending orders can be edited")
 
-        # Get existing product quantities
-        old_quantities = {}
-        for item in order.items:
-            old_quantities[item.product_id] = (
-                old_quantities.get(item.product_id, 0) + item.quantity
+        if not items:
+            raise ValueError("An order must contain at least one product")
+
+        # 6. Aggregate duplicate products in the submitted cart
+        new_quantities = {}
+
+        for item in items:
+            if item.quantity <= 0:
+                raise ValueError("Product quantity must be greater than zero")
+
+            new_quantities[item.product_id] = (
+                new_quantities.get(item.product_id, 0)
+                + item.quantity
             )
 
-        # Start with existing quantities
-        new_quantities = old_quantities.copy()
+        # 7. Get existing quantities
+        old_quantities = {}
 
-        # Update only products included in the request
-        for item in items:
-            new_quantities[item.product_id] = item.quantity
+        for item in order.items:
+            old_quantities[item.product_id] = (
+                old_quantities.get(item.product_id, 0)
+                + item.quantity
+            )
 
-        # Validate updated products and stock availability
-        updated_products = get_products_by_ids(
-            db, list(new_quantities.keys())
+        # 8. Retrieve and validate all products in the new cart
+        products = get_products_by_ids(
+            db,
+            list(new_quantities.keys())
         )
+
         product_map = {
-            product.id: product for product in updated_products
+            product.id: product
+            for product in products
         }
 
-        for product_id, quantity in new_quantities.items():
+        for product_id in new_quantities:
             product = product_map.get(product_id)
 
             if not product:
-                raise LookupError(f"Product {product_id} not found")
-
-            if not product.is_active:
-                raise ValueError(f"{product.name} is unavailable")
-
-            difference = quantity - old_quantities.get(product_id, 0)
-            available_stock = (
-                product.stock_on_hand - product.stock_reserved
-            )
-
-            if difference > available_stock:
-                raise ValueError(
-                    f"Insufficient stock for {product.name}"
+                raise LookupError(
+                    f"Product {product_id} not found"
                 )
 
-        # Calculate complete updated order total
-        new_total = sum(
-            (
-                product_map[product_id].retail_price * quantity
-                for product_id, quantity in new_quantities.items()
-            ),
-            Decimal("0.00")
+            if not product.is_active:
+                raise ValueError(
+                    f"{product.name} is currently unavailable"
+                )
+
+        # 9. Calculate the new order total using current prices
+        new_total = Decimal("0.00")
+
+        for product_id, quantity in new_quantities.items():
+            product = product_map[product_id]
+
+            new_total += product.retail_price * quantity
+
+        new_total = new_total.quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP
         )
 
-        # Adjust wallet based on the difference
+        # 10. Calculate wallet difference
         old_total = order.total_amount
         wallet_difference = new_total - old_total
 
         if wallet_difference > 0:
+
+            # Additional amount must be deducted
             deducted = deduct_wallet_balance(
-                db, current_user.id, wallet_difference
+                db,
+                current_user.id,
+                wallet_difference
             )
 
             if not deducted:
                 raise ValueError("Insufficient wallet balance")
 
         elif wallet_difference < 0:
+
+            # Refund the difference
             refund_amount = abs(wallet_difference)
 
             db.execute(
                 update(User)
                 .where(User.id == current_user.id)
                 .values(
-                    wallet_balance=User.wallet_balance + refund_amount
+                    wallet_balance=func.coalesce(
+                        User.wallet_balance,
+                        Decimal("0.00")
+                    ) + refund_amount
                 )
                 .execution_options(synchronize_session=False)
             )
 
-        # Adjust stock reservations
-        for product_id, new_quantity in new_quantities.items():
+        # 11. Adjust stock reservations
+        all_product_ids = (
+            set(old_quantities.keys())
+            | set(new_quantities.keys())
+        )
+
+        for product_id in all_product_ids:
+
             old_quantity = old_quantities.get(product_id, 0)
+            new_quantity = new_quantities.get(product_id, 0)
+
             difference = new_quantity - old_quantity
 
             if difference > 0:
-                if not reserve_product_stock(db, product_id, difference):
+
+                # Reserve additional stock
+                reserved = reserve_product_stock(
+                    db,
+                    product_id,
+                    difference
+                )
+
+                if not reserved:
                     raise ValueError(
                         f"Insufficient stock for product {product_id}"
                     )
 
             elif difference < 0:
-                if not release_product_stock(
-                    db, product_id, abs(difference)
-                ):
+
+                # Release unused reserved stock
+                released = release_product_stock(
+                    db,
+                    product_id,
+                    abs(difference)
+                )
+
+                if not released:
                     raise ValueError(
-                        f"Could not release stock for product {product_id}"
+                        f"Unable to release reserved stock for product {product_id}"
                     )
 
-        # Update existing items and add new products
-        existing_product_ids = set()
+        # 12. Replace all existing order items
+        delete_order_items(db, order.id)
 
-        for order_item in order.items:
-            product_id = order_item.product_id
-            order_item.quantity = new_quantities[product_id]
-            existing_product_ids.add(product_id)
+        # Expire the previously loaded relationship
+        db.expire(order, ["items"])
 
-        # Add products that are not already in the order
+        updated_order_items = []
+
         for product_id, quantity in new_quantities.items():
-            if product_id not in existing_product_ids:
-                product = product_map[product_id]
 
-                new_order_item = OrderItem(
+            product = product_map[product_id]
+
+            updated_order_items.append(
+                OrderItem(
                     order_id=order.id,
                     product_id=product_id,
                     quantity=quantity,
                     retail_price=product.retail_price,
                     final_unit_price=None
                 )
+            )
 
-                db.add(new_order_item)
+        create_order_items(db, updated_order_items)
 
+        # 13. Update the order total
         order.total_amount = new_total
 
+        # 14. Commit all changes together
         db.commit()
 
         return get_order_by_id(db, order.id)

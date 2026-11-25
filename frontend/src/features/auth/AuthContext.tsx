@@ -19,6 +19,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
+  updateWalletBalance: (balance: number | string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,7 +52,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const currentUser = await getCurrentUser();
     setUser(currentUser);
-    
+
     return currentUser;
   };
 
@@ -61,8 +62,25 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setUser(null);
   };
 
+  // Update wallet balance in the authenticated user's state
+  const updateWalletBalance = (balance: number | string) => {
+    setUser((previousUser) =>
+      previousUser
+        ? { ...previousUser, wallet_balance: balance }
+        : null
+    );
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        updateWalletBalance,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
