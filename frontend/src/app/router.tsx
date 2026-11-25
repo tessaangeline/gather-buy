@@ -10,6 +10,16 @@ import SuppliersPage from "../features/users/SuppliersPage";
 import ProductsPage from "../features/supplier/products/ProductsPage";
 import SupplierDashboard from "../features/supplier/dashboard/SupplierDashboard";
 import OrdersPage from "../features/supplier/orders/OrdersPage";
+import ResidentLayout from "../features/resident/layout/ResidentLayout";
+import ShopPage from "../features/resident/shop/ShopPage";
+import CartPage from "../features/resident/cart/CartPage";
+import ResidentOrdersPage from "../features/resident/orders/OrdersPage";
+import OrderDetailsPage from "../features/resident/orders/OrderDetailsPage";
+import WalletPage from "../features/resident/wallet/WalletPage";
+import ProfilePage from "../features/resident/profile/ProfilePage";
+import ApartmentDashboard from
+  "../features/apartment-admin/dashboard/ApartmentDashboard";
+import ResidentsPage from "../features/apartment-admin/residents/ResidentsPage";
 
 
 import type { User } from "../features/auth/authService";
@@ -21,8 +31,8 @@ function getDashboardPath(role: User["role"]): string {
     SUPER_ADMIN: "/super-admin/dashboard",
     APARTMENT_ADMIN: "/apartment-admin/dashboard",
     SUPPLIER: "/supplier/dashboard",
-    RESIDENT: "/resident/dashboard",
-  };
+    RESIDENT: "/resident/shop",
+   };
 
   return paths[role];
 }
@@ -114,7 +124,16 @@ function AppRouter() {
           path="/apartment-admin/dashboard"
           element={
             <ProtectedRoute allowedRoles={["APARTMENT_ADMIN"]}>
-              <DashboardPlaceholder />
+              <ApartmentDashboard />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/apartment-admin/residents"
+          element={
+            <ProtectedRoute allowedRoles={["APARTMENT_ADMIN"]}>
+              <ResidentsPage />
             </ProtectedRoute>
           }
         />
@@ -147,13 +166,22 @@ function AppRouter() {
         />
 
         <Route
-          path="/resident/dashboard"
-          element={
-            <ProtectedRoute allowedRoles={["RESIDENT"]}>
-              <DashboardPlaceholder />
-            </ProtectedRoute>
-          }
-        />
+        path="/resident"
+        element={
+          <ProtectedRoute allowedRoles={["RESIDENT"]}>
+            <ResidentLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<Navigate to="shop" replace />} />
+        <Route path="shop" element={<ShopPage />} />
+        <Route path="cart" element={<CartPage />} />
+        <Route path="orders" element={<ResidentOrdersPage />} />
+        <Route path="orders/:orderId" element={<OrderDetailsPage />} />
+        <Route path="wallet" element={<WalletPage />} />
+        <Route path="profile" element={<ProfilePage />} />
+        
+      </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
